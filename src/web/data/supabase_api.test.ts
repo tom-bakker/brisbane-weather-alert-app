@@ -24,7 +24,7 @@ function fakeSupabase(results: Record<string, QueryResult[]> = {}) {
     })),
     signInWithPassword: vi.fn(async () => ({
       data: {},
-      error: null as {message: string} | null,
+      error: null as {message: string; code?: string; status?: number} | null,
     })),
     signOut: vi.fn(async () => ({error: null})),
     onAuthStateChange: vi.fn((cb: () => void) => {
@@ -167,11 +167,17 @@ describe('createSupabaseApi auth', () => {
     });
     f.auth.signInWithPassword.mockResolvedValueOnce({
       data: {},
-      error: {message: 'Invalid login credentials'},
+      error: {
+        message: 'Invalid login credentials',
+        code: 'invalid_credentials',
+        status: 400,
+      },
     });
-    await expect(api.signIn('a@b.co', 'bad')).rejects.toThrow(
-      'Invalid login credentials',
-    );
+    await expect(api.signIn('a@b.co', 'bad')).rejects.toMatchObject({
+      name: 'SignInError',
+      reason: 'credentials',
+      message: 'Invalid login credentials',
+    });
     await api.signOut();
     expect(f.auth.signOut).toHaveBeenCalled();
   });

@@ -2,6 +2,7 @@ import {render, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {describe, expect, it} from 'vitest';
 import {App} from './app';
+import {SignInError} from './data/api';
 import {useApi} from './data/api_context';
 import {FakeApi, renderWithApi} from './test_api';
 
@@ -21,10 +22,10 @@ describe('App sign-in flow', () => {
     expect(api.signIn).toHaveBeenCalledWith('admin@example.com', 'pw');
   });
 
-  it('shows one generic message when sign-in fails', async () => {
+  it('shows a generic message for an unexpected sign-in error', async () => {
     const api = new FakeApi();
     api.step = {kind: 'signed_out'};
-    api.signIn.mockRejectedValueOnce(new Error('Invalid login credentials'));
+    api.signIn.mockRejectedValueOnce(new Error('boom'));
     renderWithApi(<App />, api);
 
     await userEvent.type(await screen.findByLabelText('Email'), 'a@b.co');
@@ -32,8 +33,27 @@ describe('App sign-in flow', () => {
     await userEvent.click(screen.getByRole('button', {name: 'Sign in'}));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Sign-in failed. Check your email and password.',
+      'Sign-in failed. Please try again.',
     );
+  });
+
+  it.each([
+    ['credentials', 'Check your email and password.'],
+    ['unconfirmed', 'This account has not been confirmed.'],
+    ['rate_limited', 'Too many sign-in attempts.'],
+    ['unreachable', 'Could not reach the sign-in service.'],
+    ['unknown', 'Sign-in failed. Please try again.'],
+  ] as const)('explains a %s sign-in failure', async (reason, text) => {
+    const api = new FakeApi();
+    api.step = {kind: 'signed_out'};
+    api.signIn.mockRejectedValueOnce(new SignInError(reason, 'x'));
+    renderWithApi(<App />, api);
+
+    await userEvent.type(await screen.findByLabelText('Email'), 'a@b.co');
+    await userEvent.type(screen.getByLabelText('Password'), 'x');
+    await userEvent.click(screen.getByRole('button', {name: 'Sign in'}));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(text);
   });
 
   it('makes a new admin enrol an authenticator, then lets them in', async () => {

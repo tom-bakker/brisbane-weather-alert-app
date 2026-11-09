@@ -19,6 +19,8 @@ import {AIRPORTS} from '../../domain/airports';
 import type {AirportCode} from '../../domain/types';
 import {
   latestPerSource,
+  SignInError,
+  signInFailureFor,
   type AirportSnapshot,
   type AuthStep,
   type DataApi,
@@ -87,7 +89,12 @@ export function createSupabaseApi(sb: SupabaseClient): DataApi {
 
     async signIn(email, password) {
       const {error} = await sb.auth.signInWithPassword({email, password});
-      if (error !== null) throw new Error(error.message);
+      if (error !== null) {
+        throw new SignInError(
+          signInFailureFor(error.code, error.status),
+          error.message,
+        );
+      }
     },
 
     async signOut() {

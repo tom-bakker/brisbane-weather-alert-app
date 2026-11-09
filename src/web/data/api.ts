@@ -62,6 +62,37 @@ export interface AuditPage {
   total: number;
 }
 
+/** Why a sign-in was refused, as far as the UI needs to know. */
+export type SignInFailure =
+  'credentials' | 'unconfirmed' | 'rate_limited' | 'unreachable' | 'unknown';
+
+/** Thrown by `DataApi.signIn`; `reason` picks the message the user sees. */
+export class SignInError extends Error {
+  constructor(
+    readonly reason: SignInFailure,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'SignInError';
+  }
+}
+
+/**
+ * Maps a Supabase Auth error code and HTTP status to a failure reason.
+ * Status 0 means the request never got an HTTP response.
+ */
+export function signInFailureFor(
+  code: string | undefined,
+  status: number | undefined,
+): SignInFailure {
+  if (code === 'invalid_credentials') return 'credentials';
+  if (code === 'email_not_confirmed') return 'unconfirmed';
+  if (code === 'over_request_rate_limit' || status === 429)
+    return 'rate_limited';
+  if (status === 0) return 'unreachable';
+  return 'unknown';
+}
+
 /** Everything the UI needs from the back end. */
 export interface DataApi {
   authStep(): Promise<AuthStep>;
