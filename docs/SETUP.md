@@ -101,3 +101,22 @@ Go to **Settings → Secrets and variables → Actions**.
   the `GMAIL_APP_PASSWORD` secret.
 - **Supabase:** create a new secret key in Supabase, update `SUPABASE_SECRET_KEY`,
   then delete the old key.
+
+## Troubleshooting sign-in
+
+A `400 (Bad Request)` on `/auth/v1/token?grant_type=password` in the browser
+console means Supabase refused the email and password. The sign-in screen says
+why. To see the raw reason, open DevTools → **Network**, click the `token`
+request and look at `error_code` in the **Response** tab.
+
+| `error_code` | Fix |
+| --- | --- |
+| `invalid_credentials` | The email or password is wrong, or the user does not exist in *this* project. Check **Authentication → Users**. To set a new password, open the user's **⋯** menu → **Send password recovery**, or delete the user and create it again (step 2.5), then update `public.admins` with the new UID. |
+| `email_not_confirmed` | The user was created without "Auto Confirm User". Open the user in **Authentication → Users** and confirm them, or create the user again with that box ticked. |
+| `over_request_rate_limit` | Too many attempts. Wait a few minutes. |
+
+If sign-in works but the app then says the account is not an admin, the UID in
+`public.admins` doesn't match the user (step 2.6).
+
+"Message emit failed … worker-content-script" warnings come from a browser
+extension (usually a password manager), not from this app, and can be ignored.

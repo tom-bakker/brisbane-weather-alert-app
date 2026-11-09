@@ -1,6 +1,30 @@
 import {useState, type FormEvent} from 'react';
 import {Button, Card, ErrorText, TextField} from '../components/ui';
+import {SignInError, type SignInFailure} from '../data/api';
 import {useApi} from '../data/api_context';
+
+/**
+ * What to tell the user for each failure. Wrong email and wrong password
+ * share one message so the screen doesn't reveal which part was wrong.
+ */
+const SIGN_IN_MESSAGES: Record<SignInFailure, string> = {
+  credentials: 'Sign-in failed. Check your email and password.',
+  unconfirmed:
+    'This account has not been confirmed. Confirm the user in the ' +
+    'Supabase dashboard (Authentication → Users), then try again.',
+  rate_limited: 'Too many sign-in attempts. Wait a few minutes and try again.',
+  unreachable:
+    'Could not reach the sign-in service. Check your connection and ' +
+    'try again.',
+  unknown: 'Sign-in failed. Please try again.',
+};
+
+/** User-facing text for an error thrown by `DataApi.signIn`. */
+function signInMessage(error: unknown): string {
+  return SIGN_IN_MESSAGES[
+    error instanceof SignInError ? error.reason : 'unknown'
+  ];
+}
 
 /** Shared frame for the sign-in screens. */
 export function AuthFrame({
@@ -40,9 +64,8 @@ export function LoginPage() {
     setError(null);
     try {
       await api.signIn(email.trim(), password);
-    } catch {
-      // Same message for every failure, so it doesn't reveal which part was wrong.
-      setError('Sign-in failed. Check your email and password.');
+    } catch (e) {
+      setError(signInMessage(e));
     } finally {
       setBusy(false);
     }
