@@ -42,9 +42,9 @@ describe('AuditPage', () => {
     renderWithApi(<AuditPage />, api);
 
     expect(await screen.findByText(/#1$/)).toBeInTheDocument();
-    expect(screen.getByText('✓ Sent')).toBeInTheDocument();
+    expect(screen.getByRole('cell', {name: 'Sent'})).toBeInTheDocument();
     expect(
-      screen.getByText('✗ Failed: SMTP 535 bad credentials'),
+      screen.getByText('Failed: SMTP 535 bad credentials'),
     ).toBeInTheDocument();
     expect(screen.getAllByTitle('a@x.com, b@x.com')[0]).toHaveTextContent('2');
     expect(screen.getByText('Page 1 of 1 (2 emails)')).toBeInTheDocument();

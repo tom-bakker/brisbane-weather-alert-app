@@ -85,6 +85,40 @@ Go to **Settings → Secrets and variables → Actions**.
    exposure" with minimum level "Info and above". On a sunny afternoon the
    next cycle sends a UV email, and **Email audit** shows the entry.
 
+## 6. "Refresh now" button (optional)
+
+The dashboard's **Refresh now** button starts the Alert cycle workflow straight
+away instead of waiting up to 10 minutes. The browser can't hold a GitHub
+token, so the button calls a Supabase Edge Function
+(`supabase/functions/trigger-alert-cycle`). The function checks that the caller
+is the admin with MFA, then asks GitHub to run the workflow.
+
+1. On GitHub: **Settings → Developer settings → Fine-grained tokens → Generate
+   new token**. Repository access: **only** this repository. Permissions:
+   **Actions: Read and write**. Nothing else. Set an expiry and diarise renewal.
+2. With the [Supabase CLI](https://supabase.com/docs/guides/cli), linked to the
+   project:
+
+   ```bash
+   supabase secrets set GITHUB_DISPATCH_TOKEN=<token> GITHUB_REPO=<owner>/brisbane-weather-alert-app ALLOWED_ORIGIN=https://<owner>.github.io
+   ```
+
+   ```bash
+   supabase functions deploy trigger-alert-cycle
+   ```
+
+3. Press **Refresh now** on the dashboard. A new run appears under **Actions →
+   Alert cycle**, and the dashboard shows the new data about 1–3 minutes later.
+
+`ALLOWED_ORIGIN` is required. It is the origin only (scheme and host, no
+path, no trailing slash). Without it the function refuses every request and
+browsers block the call, so the button shows a network error rather than
+silently allowing any website to call the function.
+
+Until this is set up, the button shows "Refresh is not set up on the server
+yet" (or a network error if the function isn't deployed or `ALLOWED_ORIGIN` is
+missing). Everything else keeps working.
+
 ## Keeping it running
 
 - **GitHub disables scheduled workflows after 60 days with no repository

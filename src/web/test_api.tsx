@@ -32,6 +32,7 @@ export class FakeApi implements DataApi {
   verifyMfa = vi.fn(async (_factorId: string, _code: string) => {});
   loadDashboard = vi.fn(async () => this.dashboard);
   loadAlertHistory = vi.fn(async (_limit: number) => this.history);
+  refreshFeeds = vi.fn(async () => {});
   listGroups = vi.fn(async () => this.groups);
   createGroup = vi.fn(async (_name: string) => {});
   updateGroup = vi.fn(async (_id: string, _patch: object) => {});

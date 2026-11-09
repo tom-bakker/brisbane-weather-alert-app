@@ -1,5 +1,12 @@
 import {useCallback, useState, type FormEvent} from 'react';
-import {Button, Card, ErrorText, TextField} from '../components/ui';
+import {Mail, Plus} from 'lucide-react';
+import {
+  Button,
+  Card,
+  ErrorText,
+  PageHeading,
+  TextField,
+} from '../components/ui';
 import {useApi, useAsync} from '../data/api_context';
 import {GroupCard} from './group_card';
 
@@ -30,19 +37,20 @@ export function GroupsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Mail groups</h1>
-        <p className="text-sm text-gray-600">
-          Each group gets an email when an alert it subscribes to is raised,
-          escalated or cleared.
-        </p>
-      </div>
+      <PageHeading
+        icon={Mail}
+        title="Mail groups"
+        subtitle="Each group gets an email when an alert it subscribes to is raised, escalated or cleared."
+      />
       <Card>
         <form onSubmit={create} className="flex flex-wrap items-end gap-2">
           <div className="flex-1">
             <TextField label="New group name" value={name} onChange={setName} />
           </div>
-          <Button type="submit">Create group</Button>
+          <Button type="submit">
+            <Plus aria-hidden="true" className="h-4 w-4" />
+            Create group
+          </Button>
         </form>
         <div className="mt-2">
           <ErrorText message={createError} />
@@ -50,7 +58,7 @@ export function GroupsPage() {
       </Card>
       <ErrorText message={error} />
       {groups?.length === 0 && (
-        <p className="text-sm text-gray-600">No groups yet.</p>
+        <p className="text-muted text-sm">No groups yet.</p>
       )}
       <div className="grid gap-6 lg:grid-cols-2">
         {groups?.map((g) => (

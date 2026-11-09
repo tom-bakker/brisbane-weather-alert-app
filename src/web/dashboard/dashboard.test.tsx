@@ -4,7 +4,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 import {makeAlert, makeObservation} from '../../domain/test_fixtures';
 import type {AirportSnapshot} from '../data/api';
 import {FakeApi, renderWithApi} from '../test_api';
-import {DashboardPage} from './dashboard_page';
+import {DashboardPage, REFRESH_COOLDOWN_MS} from './dashboard_page';
 import {formatVisibility, formatWind, withUnit} from './format';
 
 const NOW = new Date('2026-11-09T12:10:00Z');
@@ -189,8 +189,8 @@ describe('DashboardPage', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Weather data is stale',
     );
-    expect(screen.getByText('✓ OK')).toBeInTheDocument();
-    expect(screen.getByText('✗ Failed: timeout')).toBeInTheDocument();
+    expect(screen.getByText('OK')).toBeInTheDocument();
+    expect(screen.getByText('Failed: timeout')).toBeInTheDocument();
   });
 
   it('refreshes on a timer and shows load errors', async () => {
@@ -211,6 +211,55 @@ describe('DashboardPage', () => {
       await screen.findByText('No feed runs recorded yet.'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('requests a refresh, reloads, and cools down before allowing another', async () => {
+    vi.useFakeTimers({shouldAdvanceTime: true});
+    const user = userEvent.setup({advanceTimers: vi.advanceTimersByTime});
+    const api = new FakeApi();
+    renderWithApi(<DashboardPage clock={clock} />, api);
+    await screen.findByText('No feed runs recorded yet.');
+
+    const button = screen.getByRole('button', {name: 'Refresh now'});
+    await user.click(button);
+
+    expect(api.refreshFeeds).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText(/Update requested/)).toBeInTheDocument();
+    expect(api.loadDashboard).toHaveBeenCalledTimes(2);
+    expect(button).toBeDisabled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REFRESH_COOLDOWN_MS);
+    });
+    expect(button).toBeEnabled();
+    expect(screen.queryByText(/Update requested/)).not.toBeInTheDocument();
+  });
+
+  it('shows why a refresh could not start', async () => {
+    const api = new FakeApi();
+    api.refreshFeeds.mockRejectedValueOnce(new Error('Not authorised'));
+    renderWithApi(<DashboardPage clock={clock} />, api);
+    await screen.findByText('No feed runs recorded yet.');
+
+    await userEvent.click(screen.getByRole('button', {name: 'Refresh now'}));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not start a refresh: Not authorised',
+    );
+    expect(screen.getByRole('button', {name: 'Refresh now'})).toBeEnabled();
+  });
+
+  it('labels hourly forecast icons with the condition', async () => {
+    const api = new FakeApi();
+    api.dashboard = {airports: [snapshot()], feeds: []};
+    renderWithApi(<DashboardPage clock={clock} />, api);
+    const strip = await screen.findByRole('list', {name: 'Hourly forecast'});
+    expect(
+      within(strip).getByRole('img', {name: 'Light rain'}),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', {name: 'Current conditions'}),
+    ).toHaveTextContent('21°C');
   });
 });
 

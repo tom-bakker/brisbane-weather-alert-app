@@ -1,3 +1,4 @@
+import {CloudSun, LogIn} from 'lucide-react';
 import {useState, type FormEvent} from 'react';
 import {Button, Card, ErrorText, TextField} from '../components/ui';
 import {SignInError, type SignInFailure} from '../data/api';
@@ -36,10 +37,13 @@ export function AuthFrame({
 }) {
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center p-4">
-      <h1 className="mb-1 text-2xl font-semibold text-gray-900">
+      <span className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-md">
+        <CloudSun aria-hidden="true" className="h-7 w-7" />
+      </span>
+      <h1 className="text-ink mb-1 text-2xl font-semibold">
         Airport Weather Alerts
       </h1>
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="text-muted mb-4 text-sm">
         Brisbane (YBBN) and Cairns (YBCS)
       </p>
       <Card>
@@ -92,6 +96,7 @@ export function LoginPage() {
         />
         <ErrorText message={error} />
         <Button type="submit" disabled={busy}>
+          <LogIn aria-hidden="true" className="h-4 w-4" />
           {busy ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>

@@ -35,13 +35,13 @@ export function App() {
   if (error !== null) {
     return (
       <AuthFrame title="Something went wrong">
-        <p className="mb-4 text-sm text-red-700">{error}</p>
+        <p className="text-bad mb-4 text-sm">{error}</p>
         <Button onClick={reload}>Try again</Button>
       </AuthFrame>
     );
   }
   if (step === null)
-    return <p className="p-8 text-center text-gray-600">Loading…</p>;
+    return <p className="text-muted p-8 text-center">Loading…</p>;
 
   switch (step.kind) {
     case 'signed_out':
@@ -53,7 +53,7 @@ export function App() {
     case 'not_admin':
       return (
         <AuthFrame title="Not authorised">
-          <p className="mb-4 text-sm text-gray-700">
+          <p className="text-ink-soft mb-4 text-sm">
             {step.email} is not the admin account for this app.
           </p>
           <Button onClick={() => void api.signOut()}>Sign out</Button>

@@ -75,8 +75,16 @@ function fakeSupabase(results: Record<string, QueryResult[]> = {}) {
     );
     return chain;
   };
-  const sb = {auth, rpc, from} as unknown as SupabaseClient;
-  return {sb, auth, rpc, calls, unsubscribe};
+  const functions = {
+    invoke: vi.fn(
+      async (): Promise<{
+        data: unknown;
+        error: {message: string; context?: unknown} | null;
+      }> => ({data: {}, error: null}),
+    ),
+  };
+  const sb = {auth, rpc, from, functions} as unknown as SupabaseClient;
+  return {sb, auth, rpc, calls, unsubscribe, functions};
 }
 
 const steps = (call: Call | undefined) =>
@@ -304,6 +312,41 @@ describe('createSupabaseApi data', () => {
     });
     await expect(createSupabaseApi(f.sb).loadDashboard()).rejects.toThrow(
       'permission denied',
+    );
+  });
+
+  it('asks the edge function to start an alert cycle', async () => {
+    const f = fakeSupabase();
+    await createSupabaseApi(f.sb).refreshFeeds();
+    expect(f.functions.invoke).toHaveBeenCalledWith('trigger-alert-cycle', {
+      method: 'POST',
+    });
+  });
+
+  it('reports the edge function error body when it has one', async () => {
+    const f = fakeSupabase();
+    f.functions.invoke.mockResolvedValueOnce({
+      data: null,
+      error: {
+        message: 'Edge Function returned a non-2xx status code',
+        context: new Response(JSON.stringify({error: 'Not authorised'}), {
+          status: 403,
+        }),
+      },
+    });
+    await expect(createSupabaseApi(f.sb).refreshFeeds()).rejects.toThrow(
+      'Not authorised',
+    );
+  });
+
+  it('falls back to the error message when the body is not JSON', async () => {
+    const f = fakeSupabase();
+    f.functions.invoke.mockResolvedValueOnce({
+      data: null,
+      error: {message: 'Failed to send a request', context: new Response('x')},
+    });
+    await expect(createSupabaseApi(f.sb).refreshFeeds()).rejects.toThrow(
+      'Failed to send a request',
     );
   });
 
