@@ -36,6 +36,28 @@ export function unwrap<T>(result: {
   return result.data as NonNullable<T>;
 }
 
+/** Edge function that dispatches the "Alert cycle" GitHub workflow. */
+const REFRESH_FUNCTION = 'trigger-alert-cycle';
+
+/**
+ * The most useful message from a failed edge function call: the function's
+ * own `{error}` body when it sent one, else the client's message.
+ */
+async function functionErrorMessage(error: {
+  message: string;
+  context?: unknown;
+}): Promise<string> {
+  if (error.context instanceof Response) {
+    try {
+      const body = (await error.context.json()) as {error?: unknown};
+      if (typeof body.error === 'string') return body.error;
+    } catch {
+      // Not JSON: fall through to the client's message.
+    }
+  }
+  return error.message;
+}
+
 function groupPatchToRow(patch: GroupPatch): Record<string, unknown> {
   const row: Record<string, unknown> = {};
   if (patch.enabled !== undefined) row['enabled'] = patch.enabled;
@@ -170,6 +192,13 @@ export function createSupabaseApi(sb: SupabaseClient): DataApi {
           .limit(limit),
       ) as AlertRow[];
       return rows.map(rowToAlert);
+    },
+
+    async refreshFeeds() {
+      const {error} = await sb.functions.invoke(REFRESH_FUNCTION, {
+        method: 'POST',
+      });
+      if (error !== null) throw new Error(await functionErrorMessage(error));
     },
 
     async listGroups() {

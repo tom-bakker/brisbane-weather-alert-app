@@ -1,3 +1,4 @@
+import {LogOut, ShieldCheck, Smartphone} from 'lucide-react';
 import {useState, type FormEvent} from 'react';
 import {Button, ErrorText, TextField} from '../components/ui';
 import type {MfaEnrolment} from '../data/api';
@@ -42,6 +43,7 @@ function CodeForm({factorId, onVerified}: CodeFormProps) {
       />
       <ErrorText message={error} />
       <Button type="submit" disabled={busy}>
+        <ShieldCheck aria-hidden="true" className="h-4 w-4" />
         {busy ? 'Checking…' : 'Verify'}
       </Button>
     </form>
@@ -53,7 +55,7 @@ export function MfaVerifyPage({factorId, onVerified}: CodeFormProps) {
   const api = useApi();
   return (
     <AuthFrame title="Two-step verification">
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="text-muted mb-4 text-sm">
         Enter the code from your authenticator app.
       </p>
       <CodeForm factorId={factorId} onVerified={onVerified} />
@@ -62,6 +64,7 @@ export function MfaVerifyPage({factorId, onVerified}: CodeFormProps) {
         className="mt-3 w-full"
         onClick={() => void api.signOut()}
       >
+        <LogOut aria-hidden="true" className="h-4 w-4" />
         Cancel and sign out
       </Button>
     </AuthFrame>
@@ -85,7 +88,7 @@ export function MfaEnrolPage({onVerified}: {onVerified: () => void}) {
 
   return (
     <AuthFrame title="Set up two-step verification">
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="text-muted mb-4 text-sm">
         The admin account must use an authenticator app (for example Google
         Authenticator, Microsoft Authenticator, Aegis or 2FAS) in addition to
         the password.
@@ -94,6 +97,7 @@ export function MfaEnrolPage({onVerified}: {onVerified: () => void}) {
         <>
           <ErrorText message={error} />
           <Button className="w-full" onClick={() => void start()}>
+            <Smartphone aria-hidden="true" className="h-4 w-4" />
             Set up authenticator
           </Button>
         </>
@@ -104,7 +108,7 @@ export function MfaEnrolPage({onVerified}: {onVerified: () => void}) {
             alt="QR code for your authenticator app"
             className="mx-auto h-48 w-48"
           />
-          <p className="text-xs break-all text-gray-600">
+          <p className="text-muted text-xs break-all">
             Can't scan? Enter this key:{' '}
             <code className="font-mono">{enrolment.secret}</code>
           </p>

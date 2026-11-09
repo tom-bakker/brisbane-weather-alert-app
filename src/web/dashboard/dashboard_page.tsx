@@ -1,48 +1,156 @@
 import {clsx} from 'clsx';
+import {
+  Activity,
+  Columns2,
+  Database,
+  MapPin,
+  RefreshCw,
+  type LucideIcon,
+} from 'lucide-react';
 import {useCallback, useEffect, useState} from 'react';
 import {AIRPORTS} from '../../domain/airports';
 import {formatAge, formatUtcAndAest} from '../../domain/time';
 import type {AirportCode, FeedLogEntry} from '../../domain/types';
-import {Card, ErrorText} from '../components/ui';
+import {Button, Card, ErrorText, StatusText} from '../components/ui';
 import {useApi, useAsync} from '../data/api_context';
 import {AirportPanel} from './airport_panel';
 
 type View = AirportCode | 'both';
 
-const VIEWS: {id: View; label: string}[] = [
-  ...AIRPORTS.map((a) => ({id: a.code, label: `${a.name} (${a.code})`})),
-  {id: 'both', label: 'Both'},
+const VIEWS: {id: View; label: string; icon: LucideIcon}[] = [
+  ...AIRPORTS.map((a) => ({
+    id: a.code,
+    label: `${a.name} (${a.code})`,
+    icon: MapPin,
+  })),
+  {id: 'both', label: 'Both', icon: Columns2},
 ];
+
+/** How long "Refresh now" stays disabled after a run was requested. */
+export const REFRESH_COOLDOWN_MS = 120_000;
 
 function FeedHealth({feeds, now}: {feeds: readonly FeedLogEntry[]; now: Date}) {
   return (
     <Card>
-      <h2 className="mb-2 text-lg font-semibold">Feed health</h2>
+      <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
+        <Activity aria-hidden="true" className="text-accent h-5 w-5" />
+        Feed health
+      </h2>
       {feeds.length === 0 ? (
-        <p className="text-sm text-gray-600">No feed runs recorded yet.</p>
+        <p className="text-muted text-sm">No feed runs recorded yet.</p>
       ) : (
-        <ul className="divide-y divide-gray-100 text-sm">
-          {feeds.map((f) => (
-            <li
-              key={f.source}
-              className="flex flex-wrap justify-between gap-2 py-1"
-            >
-              <span className="font-mono">{f.source}</span>
-              <span
-                className={
-                  f.ok ? 'text-green-800' : 'font-semibold text-red-700'
-                }
-              >
-                {f.ok ? '✓ OK' : `✗ Failed: ${f.error ?? 'unknown error'}`}
-              </span>
-              <span className="text-gray-600" title={formatUtcAndAest(f.runAt)}>
-                {formatAge(f.runAt, now)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="text-muted text-xs tracking-wide uppercase">
+              <tr>
+                <th scope="col" className="py-2 pr-4 font-medium">
+                  Source
+                </th>
+                <th scope="col" className="py-2 pr-4 font-medium">
+                  Status
+                </th>
+                <th scope="col" className="py-2 pr-4 text-right font-medium">
+                  Records
+                </th>
+                <th scope="col" className="py-2 text-right font-medium">
+                  Last run
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-line divide-y">
+              {feeds.map((f) => (
+                <tr key={f.source} className="align-top">
+                  <td className="py-2 pr-4">
+                    <span className="inline-flex items-center gap-2 font-mono">
+                      <Database
+                        aria-hidden="true"
+                        className="text-muted h-3.5 w-3.5"
+                      />
+                      {f.source}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-4">
+                    <StatusText ok={f.ok}>
+                      {f.ok ? 'OK' : `Failed: ${f.error ?? 'unknown error'}`}
+                    </StatusText>
+                  </td>
+                  <td className="py-2 pr-4 text-right tabular-nums">
+                    {f.records}
+                  </td>
+                  <td
+                    className="text-muted py-2 text-right whitespace-nowrap"
+                    title={formatUtcAndAest(f.runAt)}
+                  >
+                    {formatAge(f.runAt, now)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </Card>
+  );
+}
+
+type RefreshState =
+  | {kind: 'idle'}
+  | {kind: 'requesting'}
+  | {kind: 'requested'}
+  | {kind: 'failed'; message: string};
+
+/**
+ * Asks the back end to run the alert cycle now. Disabled for a while after
+ * a successful request so repeated clicks don't queue extra runs.
+ */
+function RefreshNow({onRequested}: {onRequested: () => void}) {
+  const api = useApi();
+  const [state, setState] = useState<RefreshState>({kind: 'idle'});
+
+  useEffect(() => {
+    if (state.kind !== 'requested') return;
+    const timer = setTimeout(
+      () => setState({kind: 'idle'}),
+      REFRESH_COOLDOWN_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [state.kind]);
+
+  async function refresh() {
+    setState({kind: 'requesting'});
+    try {
+      await api.refreshFeeds();
+      setState({kind: 'requested'});
+      onRequested();
+    } catch (e) {
+      setState({
+        kind: 'failed',
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  const busy = state.kind === 'requesting';
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button
+        onClick={() => void refresh()}
+        disabled={busy || state.kind === 'requested'}
+      >
+        <RefreshCw
+          aria-hidden="true"
+          className={clsx('h-4 w-4', busy && 'animate-spin')}
+        />
+        {busy ? 'Requesting…' : 'Refresh now'}
+      </Button>
+      <p className="text-muted text-xs" aria-live="polite">
+        {state.kind === 'requested' &&
+          'Update requested. New data usually arrives in 1–3 minutes.'}
+      </p>
+      {state.kind === 'failed' && (
+        <ErrorText message={`Could not start a refresh: ${state.message}`} />
+      )}
+    </div>
   );
 }
 
@@ -72,11 +180,11 @@ export function DashboardPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div
           role="tablist"
           aria-label="Airport"
-          className="flex flex-wrap gap-1"
+          className="border-line bg-surface inline-flex flex-wrap gap-1 rounded-lg border p-1 shadow-sm"
         >
           {VIEWS.map((v) => (
             <button
@@ -86,19 +194,30 @@ export function DashboardPage({
               aria-selected={view === v.id}
               onClick={() => setView(v.id)}
               className={clsx(
-                'rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-600 focus:outline-none',
+                'focus:ring-accent inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus:ring-2 focus:outline-none',
                 view === v.id
-                  ? 'bg-gray-900 text-white'
-                  : 'border border-gray-300 bg-white text-gray-700',
+                  ? 'bg-ink text-surface shadow-sm'
+                  : 'text-ink-soft hover:bg-subtle',
               )}
             >
+              <v.icon aria-hidden="true" className="h-4 w-4" />
               {v.label}
             </button>
           ))}
         </div>
-        <p className="text-xs text-gray-600" aria-live="polite">
-          {loading ? 'Refreshing…' : 'Auto-refreshes every minute'}
-        </p>
+        <div className="flex items-start gap-3">
+          <p
+            className="text-muted mt-2.5 inline-flex items-center gap-1 text-xs"
+            aria-live="polite"
+          >
+            <RefreshCw
+              aria-hidden="true"
+              className={clsx('h-3 w-3', loading && 'animate-spin')}
+            />
+            {loading ? 'Refreshing…' : 'Auto-refreshes every minute'}
+          </p>
+          <RefreshNow onRequested={reload} />
+        </div>
       </div>
       <ErrorText
         message={

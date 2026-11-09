@@ -1,4 +1,14 @@
+import {
+  BellRing,
+  PlaneTakeoff,
+  SlidersHorizontal,
+  Trash2,
+  UserMinus,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import {useState, type FormEvent} from 'react';
+import {CATEGORY_ICONS} from '../components/category_icon';
 import {AIRPORTS} from '../../domain/airports';
 import {categoryDescription, categoryLabel} from '../../domain/categories';
 import {levelLabel} from '../../domain/levels';
@@ -82,8 +92,12 @@ export function GroupCard({group, onChanged}: GroupCardProps) {
   return (
     <Card className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">{group.name}</h2>
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          <Users aria-hidden="true" className="text-accent h-5 w-5" />
+          {group.name}
+        </h2>
         <Button variant="danger" onClick={remove} disabled={busy}>
+          <Trash2 aria-hidden="true" className="h-4 w-4" />
           Delete group
         </Button>
       </div>
@@ -98,7 +112,8 @@ export function GroupCard({group, onChanged}: GroupCardProps) {
       />
 
       <fieldset>
-        <legend className="text-sm font-semibold text-gray-800">
+        <legend className="text-ink-soft flex items-center gap-1.5 text-sm font-semibold">
+          <PlaneTakeoff aria-hidden="true" className="h-4 w-4" />
           Airports
         </legend>
         {AIRPORTS.map((a) => (
@@ -115,14 +130,16 @@ export function GroupCard({group, onChanged}: GroupCardProps) {
       </fieldset>
 
       <fieldset>
-        <legend className="text-sm font-semibold text-gray-800">
+        <legend className="text-ink-soft flex items-center gap-1.5 text-sm font-semibold">
+          <BellRing aria-hidden="true" className="h-4 w-4" />
           Alert for
         </legend>
-        <div className="divide-y divide-gray-100">
+        <div className="divide-line divide-y">
           {ALERT_CATEGORIES.map((c) => (
             <ToggleSwitch
               key={c}
               label={categoryLabel(c)}
+              icon={CATEGORY_ICONS[c]}
               description={categoryDescription(c)}
               checked={group.categories.includes(c)}
               disabled={busy}
@@ -137,8 +154,9 @@ export function GroupCard({group, onChanged}: GroupCardProps) {
       <div className="flex flex-col gap-1">
         <label
           htmlFor={`min-level-${group.id}`}
-          className="text-sm font-semibold text-gray-800"
+          className="text-ink-soft flex items-center gap-1.5 text-sm font-semibold"
         >
+          <SlidersHorizontal aria-hidden="true" className="h-4 w-4" />
           Minimum level to email
         </label>
         <select
@@ -148,7 +166,7 @@ export function GroupCard({group, onChanged}: GroupCardProps) {
           onChange={(e) =>
             void update({minLevel: e.target.value as AlertLevel})
           }
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none sm:w-60"
+          className="border-line-strong bg-surface text-ink focus:ring-accent rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none sm:w-60"
         >
           {ALERT_LEVELS.map((l) => (
             <option key={l} value={l}>
@@ -159,15 +177,16 @@ export function GroupCard({group, onChanged}: GroupCardProps) {
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold text-gray-800">
+        <h3 className="text-ink-soft flex items-center gap-1.5 text-sm font-semibold">
+          <Users aria-hidden="true" className="h-4 w-4" />
           Members ({group.members.length})
         </h3>
         {group.members.length === 0 ? (
-          <p className="text-sm text-gray-600">
+          <p className="text-muted text-sm">
             No members yet. Add an email address below.
           </p>
         ) : (
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-line divide-y">
             {group.members.map((m) => (
               <li
                 key={m.id}
@@ -180,6 +199,7 @@ export function GroupCard({group, onChanged}: GroupCardProps) {
                   disabled={busy}
                   onClick={() => void run(() => api.removeMember(m.id))}
                 >
+                  <UserMinus aria-hidden="true" className="h-4 w-4" />
                   Remove
                 </Button>
               </li>
@@ -201,6 +221,7 @@ export function GroupCard({group, onChanged}: GroupCardProps) {
             />
           </div>
           <Button type="submit" disabled={busy}>
+            <UserPlus aria-hidden="true" className="h-4 w-4" />
             Add
           </Button>
         </form>

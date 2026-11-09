@@ -1,1 +1,60 @@
 @import 'tailwindcss';
+
+/* Dark mode follows a `dark` class on <html>, set from the theme toggle. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Semantic colours. Components use these (bg-surface, text-muted, ...) so
+ * one set of classes works in both themes.
+ */
+:root {
+  --canvas: var(--color-slate-50);
+  --surface: var(--color-white);
+  --subtle: var(--color-slate-100);
+  --line: var(--color-slate-200);
+  --line-strong: var(--color-slate-300);
+  --ink: var(--color-slate-900);
+  --ink-soft: var(--color-slate-700);
+  --muted: var(--color-slate-600);
+  --ok: var(--color-emerald-700);
+  --bad: var(--color-red-700);
+  --link: var(--color-sky-700);
+  --accent: var(--color-sky-600);
+  color-scheme: light;
+}
+
+.dark {
+  --canvas: var(--color-slate-950);
+  --surface: var(--color-slate-900);
+  --subtle: var(--color-slate-800);
+  --line: var(--color-slate-800);
+  --line-strong: var(--color-slate-700);
+  --ink: var(--color-slate-100);
+  --ink-soft: var(--color-slate-300);
+  --muted: var(--color-slate-400);
+  --ok: var(--color-emerald-400);
+  --bad: var(--color-red-400);
+  --link: var(--color-sky-400);
+  --accent: var(--color-sky-500);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-subtle: var(--subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-muted: var(--muted);
+  --color-ok: var(--ok);
+  --color-bad: var(--bad);
+  --color-link: var(--link);
+  --color-accent: var(--accent);
+}
+
+body {
+  background-color: var(--canvas);
+  color: var(--ink);
+}

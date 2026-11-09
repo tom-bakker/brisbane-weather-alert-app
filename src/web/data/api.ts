@@ -105,6 +105,8 @@ export interface DataApi {
 
   loadDashboard(): Promise<DashboardData>;
   loadAlertHistory(limit: number): Promise<AlertRecord[]>;
+  /** Asks GitHub Actions to run the alert cycle now (via an edge function). */
+  refreshFeeds(): Promise<void>;
 
   listGroups(): Promise<MailGroup[]>;
   createGroup(name: string): Promise<void>;

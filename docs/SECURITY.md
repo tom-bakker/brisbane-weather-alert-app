@@ -7,6 +7,7 @@
 | Gmail app password | **Yes** | GitHub Actions secret `GMAIL_APP_PASSWORD` | Alert job only |
 | Supabase secret key | **Yes** | GitHub Actions secret `SUPABASE_SECRET_KEY` | Alert job only |
 | Gmail address, Supabase URL | Low risk | GitHub Actions secrets | Alert job |
+| GitHub dispatch token (fine-grained, this repo, Actions: write) | **Yes** | Supabase Edge Function secret `GITHUB_DISPATCH_TOKEN` | `trigger-alert-cycle` function only, after it checks the caller is the admin with MFA |
 | Supabase publishable key and URL | No: public by design | GitHub Actions variables, built into the web app | Browser |
 | Admin password | **Yes** | Your password manager; Supabase stores only a hash | Admin |
 | Admin TOTP seed | **Yes** | Your authenticator app; Supabase | Admin |
