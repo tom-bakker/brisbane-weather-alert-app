@@ -1,0 +1,39 @@
+# Fetches weather, evaluates alert rules, emails subscribed groups and writes
+# the email audit. Secrets come only from encrypted GitHub Actions secrets.
+name: Alert cycle
+
+on:
+  schedule:
+    # Every 10 minutes, offset from the top of the hour, when GitHub's
+    # scheduler is busiest. GitHub may still delay runs under load.
+    - cron: '7,17,27,37,47,57 * * * *'
+  workflow_dispatch:
+
+# Never run two cycles at once; a queued run waits for the current one.
+concurrency:
+  group: alert-cycle
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Run alert cycle
+        run: npm run alert-cycle
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_FROM_NAME: ${{ vars.ALERT_FROM_NAME }}
+          APP_URL: ${{ vars.APP_URL }}

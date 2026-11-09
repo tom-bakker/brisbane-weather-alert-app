@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+.metrics
+*.local
+# Never commit environment files: secrets live in GitHub Actions secrets.
+.env
+.env.*
+!.env.example
