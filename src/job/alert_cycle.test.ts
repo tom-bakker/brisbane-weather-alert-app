@@ -110,7 +110,6 @@ describe('runAlertCycle', () => {
       mailer,
       airports: AIRPORTS,
       now: () => now,
-      appUrl: 'https://example.github.io/app/',
       log: vi.fn(),
     };
   });
@@ -171,9 +170,7 @@ describe('runAlertCycle', () => {
       status: 'sent',
       error: null,
     });
-    expect(store.emails[0]?.body).toContain(
-      'Dashboard: https://example.github.io/app/',
-    );
+    expect(store.emails[0]?.body).not.toContain('://');
   });
 
   it('does not repeat an unchanged alert, then escalates, then clears after the hold', async () => {

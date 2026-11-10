@@ -39,7 +39,6 @@ export interface AlertCycleDeps {
   mailer: Mailer;
   airports: readonly AirportConfig[];
   now: () => Date;
-  appUrl: string | null;
   log: (message: string) => void;
 }
 
@@ -305,7 +304,7 @@ class Cycle {
     group: MailGroup,
     sections: EmailSections,
   ) {
-    const content = composeEmail(event, this.deps.appUrl, sections);
+    const content = composeEmail(event, sections);
     const recipients = group.members.map((m) => m.email);
     let error: string | null = null;
     try {

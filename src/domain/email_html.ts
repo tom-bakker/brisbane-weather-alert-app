@@ -18,7 +18,6 @@ export interface EmailView {
   title: string;
   icon: string;
   guidance: string;
-  appUrl: string | null;
   disclaimer: string;
 }
 
@@ -158,15 +157,6 @@ function guidanceBox(view: EmailView, tone: Tone): string {
 </td></tr></table>`;
 }
 
-function button(appUrl: string | null): string {
-  if (appUrl === null) return '';
-  const href = escapeHtml(appUrl);
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;"><tr>
-<td ${fill('#0284c7')}border-radius:6px;padding:12px 22px;">
-<a href="${href}" style="display:inline-block;${FONT}font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;">📊 Open dashboard</a>
-</td></tr></table>`;
-}
-
 /** The full HTML document for an alert email. */
 export function renderEmailHtml(view: EmailView): string {
   const tone = toneFor(view.event);
@@ -194,7 +184,6 @@ ${banner(view, tone)}
 ${summary(view)}
 ${details(view)}
 ${guidanceBox(view, tone)}
-${button(view.appUrl)}
 </td></tr>
 <tr><td ${fill('#f8fafc')}border-top:1px solid ${LINE};padding:16px 24px;${FONT}font-size:12px;line-height:18px;color:${MUTED};">${escapeHtml(view.disclaimer)}</td></tr>
 </table>

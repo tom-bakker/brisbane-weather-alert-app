@@ -10,7 +10,7 @@ import {
   TITLE_MAX,
   type EmailSection,
 } from './email_sections';
-import {escapeHtml, escapeMultiline} from './email_html';
+import {escapeMultiline} from './email_html';
 import {composeEmail} from './notifications';
 import {makeAlert} from './test_fixtures';
 import {ALERT_CATEGORIES} from './types';
@@ -79,13 +79,11 @@ describe('sameSection', () => {
 });
 
 describe('HTML alert email', () => {
-  const url = 'https://example.github.io/app/?a=1&b=2';
-
   it('shows the section icon, level, place, details and guidance', () => {
-    const {html} = composeEmail(
-      {kind: 'raised', alert: makeAlert({level: 'warning'})},
-      url,
-    );
+    const {html} = composeEmail({
+      kind: 'raised',
+      alert: makeAlert({level: 'warning'}),
+    });
     expect(html).toMatch(/^<!DOCTYPE html>/);
     expect(html).toContain('💨');
     expect(html).toContain('⚠️ Warning');
@@ -94,14 +92,15 @@ describe('HTML alert email', () => {
     expect(html).toContain('27 kt');
     expect(html).toContain('2026-11-09 22:00 AEST / 12:00 UTC');
     expect(html).toContain('What to do');
-    expect(html).toContain(`href="${escapeHtml(url)}"`);
+    expect(html).not.toContain('<a ');
+    expect(html).not.toContain('href');
+    expect(html).not.toContain('Open dashboard');
     expect(html).not.toContain('<svg');
   });
 
   it('labels an escalation in the headline', () => {
     const {html} = composeEmail({kind: 'escalated', alert: makeAlert()});
     expect(html).toContain('Wind gust escalated');
-    expect(html).not.toContain('Open dashboard');
   });
 
   it.each([
@@ -130,11 +129,7 @@ describe('HTML alert email', () => {
     const sections = mergeSections([
       section({icon: '🚩', title: 'Gusts <b>', guidance: 'Tie "down" & go'}),
     ]);
-    const email = composeEmail(
-      {kind: 'raised', alert: makeAlert()},
-      null,
-      sections,
-    );
+    const email = composeEmail({kind: 'raised', alert: makeAlert()}, sections);
     expect(email.subject).toBe('[WATCH] Gusts <b> 27 kt at Brisbane (YBBN)');
     expect(email.html).toContain('🚩');
     expect(email.html).toContain('Gusts &lt;b&gt;');
@@ -146,7 +141,6 @@ describe('HTML alert email', () => {
     expect(escapeMultiline('a <b>\r\nc\nd')).toBe('a &lt;b&gt;<br>c<br>d');
     const email = composeEmail(
       {kind: 'raised', alert: makeAlert()},
-      null,
       mergeSections([section({guidance: 'One\nTwo'})]),
     );
     expect(email.html).toContain('One<br>Two');
@@ -154,13 +148,12 @@ describe('HTML alert email', () => {
   });
 
   it('is built for Outlook and light mode', () => {
-    const {html} = composeEmail({kind: 'raised', alert: makeAlert()}, url);
+    const {html} = composeEmail({kind: 'raised', alert: makeAlert()});
     expect(html).toContain(
       '<!--[if mso]><table role="presentation" width="600"',
     );
     expect(html).toContain('<!--[if mso]></td></tr></table><![endif]-->');
     expect(html).toContain('bgcolor="#fef3c7"');
-    expect(html).toContain('bgcolor="#0284c7"');
     expect(html).toContain(
       '<meta name="supported-color-schemes" content="light">',
     );
@@ -170,7 +163,6 @@ describe('HTML alert email', () => {
   it('hides the guidance box when the guidance is empty', () => {
     const email = composeEmail(
       {kind: 'raised', alert: makeAlert()},
-      null,
       mergeSections([section({guidance: '  '})]),
     );
     expect(email.html).not.toContain('What to do');

@@ -9,7 +9,6 @@ export interface JobConfig {
   gmailUser: string;
   gmailAppPassword: string;
   fromName: string;
-  appUrl: string | null;
   userAgent: string;
 }
 
@@ -54,7 +53,6 @@ export function readJobConfig(env: Env): JobConfig {
     // Google shows app passwords with spaces; SMTP needs them removed.
     gmailAppPassword: value('GMAIL_APP_PASSWORD').replace(/\s+/g, ''),
     fromName: optional(env, 'ALERT_FROM_NAME') ?? 'Airport Weather Alerts',
-    appUrl: optional(env, 'APP_URL'),
     userAgent: userAgentFor(env),
   };
 }

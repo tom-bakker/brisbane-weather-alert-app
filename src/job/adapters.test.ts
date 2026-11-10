@@ -22,15 +22,12 @@ describe('readJobConfig', () => {
   };
 
   it('reads required and optional values and strips app password spaces', () => {
-    expect(
-      readJobConfig({...env, APP_URL: ' https://x.github.io/app/ '}),
-    ).toEqual({
+    expect(readJobConfig(env)).toEqual({
       supabaseUrl: 'https://abc.supabase.co',
       supabaseSecretKey: 'sb_secret_x',
       gmailUser: 'alerts@gmail.com',
       gmailAppPassword: 'abcdefghijklmnop',
       fromName: 'Airport Weather Alerts',
-      appUrl: 'https://x.github.io/app/',
       userAgent:
         'brisbane-weather-alert-app/0.1 (github.com/tom/brisbane-weather-alert-app)',
     });

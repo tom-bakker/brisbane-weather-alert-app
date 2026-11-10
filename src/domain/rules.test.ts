@@ -340,15 +340,15 @@ describe('groupsForEvent', () => {
 });
 
 describe('composeEmail', () => {
-  it('writes a raised alert with times, link and disclaimer', () => {
-    const email = composeEmail(
-      {kind: 'raised', alert: makeAlert({message: 'Wind <b>27</b> kt.'})},
-      'https://example.github.io/app/',
-    );
+  it('writes a raised alert with times and disclaimer but no link', () => {
+    const email = composeEmail({
+      kind: 'raised',
+      alert: makeAlert({message: 'Wind <b>27</b> kt.'}),
+    });
     expect(email.subject).toBe('[WATCH] Wind gust 27 kt at Brisbane (YBBN)');
     expect(email.text).toContain('Watch: Wind gust at Brisbane (YBBN).');
     expect(email.text).toContain('Started 2026-11-09 22:00 AEST / 12:00 UTC');
-    expect(email.text).toContain('Dashboard: https://example.github.io/app/');
+    expect(email.text).not.toContain('://');
     expect(email.text).toContain(DISCLAIMER);
     expect(email.html).toContain('Wind &lt;b&gt;27&lt;/b&gt; kt.');
     expect(email.html).not.toContain('<p></p>');
@@ -363,7 +363,6 @@ describe('composeEmail', () => {
       '[STAND-DOWN] Wind gust 27 kt at Brisbane (YBBN)',
     );
     expect(email.html).toContain('&quot;A&quot; &amp; &#39;B&#39;');
-    expect(email.text).not.toContain('Dashboard:');
   });
 
   it('writes an all-clear', () => {
