@@ -29,17 +29,20 @@ Notes:
    your password manager.
 2. **SQL Editor** → paste the contents of
    `supabase/migrations/20261109000000_initial_schema.sql` → **Run**. Then do
-   the same, in order, for `20261110000000_email_sections.sql` and
+   the same, in order, for `20261110000000_email_sections.sql`,
    `20261112000000_email_resend.sql` (the Email audit page's **Resend**
-   button needs the last one). The cron migration comes later, in section 6.
+   button) and `20261113000000_user_management.sql` (roles, Settings →
+   Users and the user audit). The cron migration comes later, in section 6.
 3. **Authentication → Sign In / Providers**: turn **off** "Allow new users to sign up".
 4. **Authentication → Multi-Factor**: make sure **TOTP (App Authenticator)** is enabled.
-5. **Authentication → Users → Add user → Create new user**: enter the admin
-   email and a long, unique password. Tick "Auto Confirm User".
+5. **Authentication → Users → Add user → Create new user**: enter the first
+   admin's email and a long, unique password. Tick "Auto Confirm User".
+   This is the only account made by hand; everyone else is invited from the
+   app (section 7).
 6. Copy the new user's **UID** and run this in the SQL Editor:
 
    ```sql
-   insert into public.admins (user_id) values ('<paste UID here>');
+   insert into public.app_users (user_id, role) values ('<paste UID here>', 'admin');
    ```
 
 7. **Authentication → URL Configuration**: set **Site URL** to your GitHub
@@ -186,6 +189,71 @@ Until this is set up, the button shows "Refresh is not set up on the server
 yet" (or a network error if the function isn't deployed or `ALLOWED_ORIGIN` is
 missing). Everything else keeps working.
 
+## 7. Users, invitations and password resets
+
+The app is invite only. There are two roles:
+
+| Role | Can do |
+| --- | --- |
+| **Admin** | Everything, plus **Settings → Users** (invite, change role, reset password, reset MFA, remove) and **Settings → User audit**. |
+| **Power user** | Dashboard, alerts, Refresh now, mail groups (add and remove emails), email sections and the email audit. |
+
+Everyone must use a password **and** an authenticator app. The admin sees
+only each user's email, role and status, never a password or MFA secret.
+
+Invitation and reset emails are sent by Supabase Auth, through the **same
+Gmail account** as the alerts:
+
+1. In Google, create a **second app password** for the alerts Gmail account
+   and name it "Supabase Auth". (A separate one means you can revoke either
+   without breaking the other.) Don't save it anywhere.
+2. **Authentication → Emails → SMTP Settings** → **Enable custom SMTP**:
+
+   | Field | Value |
+   | --- | --- |
+   | Sender email | the Gmail address (the same as `GMAIL_USER`) |
+   | Sender name | `Airport Weather Alerts` |
+   | Host | `smtp.gmail.com` |
+   | Port | `465` |
+   | Username | the Gmail address |
+   | Password | the new app password |
+
+3. **Authentication → Emails → Templates**: for **Invite user**, set the
+   subject to `✈️ You're invited to Airport Weather Alerts` and paste
+   `supabase/templates/invite.html` as the body. For **Reset password**, set
+   the subject to `🔑 Reset your Airport Weather Alerts password` and paste
+   `supabase/templates/recovery.html`.
+4. Check **Authentication → URL Configuration → Site URL** is the Pages URL
+   (step 2.7): the links in both emails go there.
+5. Deploy the user management function, and redeploy the refresh function
+   (it now admits both roles, and the old `is_admin()` check it used is gone):
+
+   ```bash
+   npx supabase functions deploy manage-users --no-verify-jwt
+   ```
+
+   ```bash
+   npx supabase functions deploy trigger-alert-cycle --no-verify-jwt
+   ```
+
+   `manage-users` uses the `ALLOWED_ORIGIN` secret from section 6 and the
+   Supabase-provided service key; it needs no new secrets. It refuses anyone
+   who is not an admin signed in with MFA.
+
+Upgrading an existing install: run `20261113000000_user_management.sql` in
+the SQL Editor, then do steps 1–5. Your existing admin becomes an **Admin**.
+
+How it works for the person invited: they click the link, choose a password
+(12+ characters), scan a QR code with an authenticator app, and they're in.
+After **Reset password** they open the link, enter their authenticator code,
+then choose a new password. After **Reset MFA** they sign in with their
+password and scan a new QR code.
+
+**Settings → User audit** records, with a timestamp: users added and
+removed, role changes, password reset emails sent, passwords set or changed,
+MFA resets and invitations accepted (email confirmed). It is read-only from
+the app.
+
 ## Keeping it running
 
 - **The GitHub dispatch token expires.** When it does, the cron job and
@@ -199,7 +267,8 @@ missing). Everything else keeps working.
 ## Rotating secrets
 
 - **Gmail:** revoke the old app password in Google, create a new one and update
-  the `GMAIL_APP_PASSWORD` secret.
+  the `GMAIL_APP_PASSWORD` secret. For the "Supabase Auth" app password, update
+  **Authentication → Emails → SMTP Settings** instead.
 - **Supabase:** create a new secret key in Supabase, update `SUPABASE_SECRET_KEY`,
   then delete the old key.
 
@@ -212,12 +281,16 @@ request and look at `error_code` in the **Response** tab.
 
 | `error_code` | Fix |
 | --- | --- |
-| `invalid_credentials` | The email or password is wrong, or the user does not exist in *this* project. Check **Authentication → Users**. To set a new password, open the user's **⋯** menu → **Send password recovery**, or delete the user and create it again (step 2.5), then update `public.admins` with the new UID. |
-| `email_not_confirmed` | The user was created without "Auto Confirm User". Open the user in **Authentication → Users** and confirm them, or create the user again with that box ticked. |
+| `invalid_credentials` | The email or password is wrong, or the user does not exist in *this* project. An admin can send a new password from **Settings → Users → Reset password**. |
+| `email_not_confirmed` | The user hasn't opened their invitation yet. Remove them in **Settings → Users** and invite them again if the link expired. |
 | `over_request_rate_limit` | Too many attempts. Wait a few minutes. |
 
-If sign-in works but the app then says the account is not an admin, the UID in
-`public.admins` doesn't match the user (step 2.6).
+If sign-in works but the app says the account doesn't have access, the user
+isn't in `public.app_users` (step 2.6, or invite them from the app).
+
+If invite or reset emails don't arrive, check **Authentication → Emails →
+SMTP Settings** (a wrong app password shows as an SMTP error in **Logs →
+Auth**) and the Auth email rate limit under **Authentication → Rate Limits**.
 
 "Message emit failed … worker-content-script" warnings come from a browser
 extension (usually a password manager), not from this app, and can be ignored.

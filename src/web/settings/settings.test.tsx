@@ -5,8 +5,10 @@ import {defaultSection} from '../../domain/email_sections';
 import {FakeApi, renderWithApi} from '../test_api';
 import {SettingsPage} from './settings_page';
 
+const ADMIN = {email: 'admin@example.com', role: 'admin'} as const;
+
 async function openSections(api = new FakeApi()) {
-  renderWithApi(<SettingsPage />, api);
+  renderWithApi(<SettingsPage user={ADMIN} />, api);
   await screen.findByRole('navigation', {name: 'Email sections'});
   return api;
 }
@@ -156,7 +158,7 @@ describe('SettingsPage', () => {
   it('falls back to the defaults when saved sections cannot load', async () => {
     const api = new FakeApi();
     api.loadEmailSections.mockRejectedValue(new Error('relation missing'));
-    renderWithApi(<SettingsPage />, api);
+    renderWithApi(<SettingsPage user={ADMIN} />, api);
 
     expect(await screen.findByRole('status')).toHaveTextContent(
       /relation missing.*built-in defaults/,

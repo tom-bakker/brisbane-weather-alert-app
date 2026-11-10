@@ -1,6 +1,7 @@
 // @vitest-environment node
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {describe, expect, it, vi} from 'vitest';
+import {memoryIntentStore} from '../auth/auth_link';
 import {createSupabaseApi, unwrap} from './supabase_api';
 
 interface Call {
@@ -54,7 +55,16 @@ function fakeSupabase(results: Record<string, QueryResult[]> = {}) {
       challengeAndVerify: vi.fn(async () => ({data: {}, error: null})),
     },
   };
-  const rpc = vi.fn(async () => ({data: true, error: null}));
+  const rpc = vi.fn(
+    async (name: string): Promise<{data: unknown; error: null}> => ({
+      data: name === 'my_role' ? 'admin' : [],
+      error: null,
+    }),
+  );
+  (auth as Record<string, unknown>)['updateUser'] = vi.fn(async () => ({
+    data: {user: {}},
+    error: null,
+  }));
   const from = (table: string) => {
     const call: Call = {table, steps: []};
     calls.push(call);
@@ -139,19 +149,35 @@ describe('createSupabaseApi auth', () => {
     });
   });
 
-  it('lets in the listed admin and turns away anyone else', async () => {
+  it('lets in a listed user with their role and turns away anyone else', async () => {
     const f = fakeSupabase();
     const api = createSupabaseApi(f.sb);
     expect(await api.authStep()).toEqual({
       kind: 'signed_in',
       email: 'admin@example.com',
+      role: 'admin',
     });
-    f.rpc.mockResolvedValueOnce({data: false, error: null});
+    f.rpc.mockResolvedValueOnce({data: 'power_user', error: null});
+    expect(await api.authStep()).toMatchObject({role: 'power_user'});
+    f.rpc.mockResolvedValueOnce({data: null, error: null});
     expect(await api.authStep()).toEqual({
-      kind: 'not_admin',
+      kind: 'not_authorised',
       email: 'admin@example.com',
     });
-    expect(f.rpc).toHaveBeenCalledWith('is_admin');
+    expect(f.rpc).toHaveBeenCalledWith('my_role');
+  });
+
+  it('turns away a stranger before any MFA step', async () => {
+    const f = fakeSupabase();
+    f.rpc.mockResolvedValueOnce({data: null, error: null});
+    f.auth.mfa.getAuthenticatorAssuranceLevel.mockResolvedValueOnce({
+      data: {currentLevel: 'aal1'},
+      error: null,
+    });
+    expect(await createSupabaseApi(f.sb).authStep()).toMatchObject({
+      kind: 'not_authorised',
+    });
+    expect(f.auth.mfa.listFactors).not.toHaveBeenCalled();
   });
 
   it('copes with a session user without an email', async () => {
@@ -159,10 +185,85 @@ describe('createSupabaseApi auth', () => {
     f.auth.getSession.mockResolvedValueOnce({
       data: {session: {user: {}}},
     } as never);
-    expect(await createSupabaseApi(f.sb).authStep()).toEqual({
+    expect(await createSupabaseApi(f.sb).authStep()).toMatchObject({
       kind: 'signed_in',
       email: '',
     });
+  });
+
+  it('shows why an emailed link failed when signed out', async () => {
+    const f = fakeSupabase();
+    f.auth.getSession.mockResolvedValueOnce({data: {session: null}} as never);
+    const api = createSupabaseApi(f.sb, {linkError: 'Link expired'});
+    expect(await api.authStep()).toEqual({
+      kind: 'signed_out',
+      linkError: 'Link expired',
+    });
+  });
+
+  it('asks an invited user for a password before enrolling MFA', async () => {
+    const f = fakeSupabase();
+    f.auth.mfa.getAuthenticatorAssuranceLevel.mockResolvedValue({
+      data: {currentLevel: 'aal1'},
+      error: null,
+    });
+    const intents = memoryIntentStore('invite');
+    const api = createSupabaseApi(f.sb, {intents});
+    expect(await api.authStep()).toEqual({
+      kind: 'set_password',
+      email: 'admin@example.com',
+      intent: 'invite',
+    });
+
+    await api.setPassword('a-long-password');
+    expect(f.auth['updateUser' as keyof typeof f.auth]).toHaveBeenCalledWith({
+      password: 'a-long-password',
+    });
+    expect(intents.get()).toBeNull();
+    expect(await api.authStep()).toEqual({kind: 'enrol_mfa'});
+  });
+
+  it('asks for the MFA code before a reset password, then the password', async () => {
+    const f = fakeSupabase();
+    f.auth.mfa.getAuthenticatorAssuranceLevel.mockResolvedValueOnce({
+      data: {currentLevel: 'aal1'},
+      error: null,
+    });
+    f.auth.mfa.listFactors.mockResolvedValueOnce({
+      data: {totp: [{id: 'v', status: 'verified'}], all: []},
+      error: null,
+    });
+    const api = createSupabaseApi(f.sb, {
+      intents: memoryIntentStore('recovery'),
+    });
+    expect(await api.authStep()).toMatchObject({kind: 'verify_mfa'});
+    expect(await api.authStep()).toMatchObject({
+      kind: 'set_password',
+      intent: 'recovery',
+    });
+  });
+
+  it('keeps the intent when the password is refused', async () => {
+    const f = fakeSupabase();
+    const update = f.auth['updateUser' as keyof typeof f.auth] as ReturnType<
+      typeof vi.fn
+    >;
+    update.mockResolvedValueOnce({
+      data: {user: null},
+      error: {message: 'Password is too weak'},
+    });
+    const intents = memoryIntentStore('recovery');
+    await expect(
+      createSupabaseApi(f.sb, {intents}).setPassword('x'),
+    ).rejects.toThrow('Password is too weak');
+    expect(intents.get()).toBe('recovery');
+  });
+
+  it('forgets a pending password intent on sign-out', async () => {
+    const f = fakeSupabase();
+    const intents = memoryIntentStore('invite');
+    await createSupabaseApi(f.sb, {intents}).signOut();
+    expect(intents.get()).toBeNull();
   });
 
   it('signs in and out and surfaces sign-in errors', async () => {
@@ -508,5 +609,124 @@ describe('createSupabaseApi data', () => {
       'A resend of this email is already queued.',
     );
     await expect(api.resendEmail(7)).rejects.toThrow('permission denied');
+  });
+});
+
+describe('createSupabaseApi users', () => {
+  it('lists users from the RPC, emails and flags only', async () => {
+    const f = fakeSupabase();
+    f.rpc.mockResolvedValueOnce({
+      data: [
+        {
+          user_id: 'u1',
+          email: 'sam@example.com',
+          role: 'power_user',
+          invited_at: '2026-11-01T00:00:00Z',
+          email_confirmed: true,
+          mfa_enrolled: false,
+          last_sign_in_at: null,
+        },
+      ],
+      error: null,
+    });
+    expect(await createSupabaseApi(f.sb).listUsers()).toEqual([
+      {
+        id: 'u1',
+        email: 'sam@example.com',
+        role: 'power_user',
+        invitedAt: '2026-11-01T00:00:00Z',
+        emailConfirmed: true,
+        mfaEnrolled: false,
+        lastSignInAt: null,
+      },
+    ]);
+    expect(f.rpc).toHaveBeenCalledWith('list_app_users');
+  });
+
+  it('sends each change to the manage-users function', async () => {
+    const f = fakeSupabase();
+    const api = createSupabaseApi(f.sb);
+    await api.inviteUser(' Sam@Example.com ', 'power_user');
+    await api.resetUserPassword('u1');
+    await api.resetUserMfa('u1');
+    await api.setUserRole('u1', 'admin');
+    await api.removeUser('u1');
+    const bodies = f.functions.invoke.mock.calls.map(
+      (c) => (c as unknown[])[1],
+    );
+    expect(
+      f.functions.invoke.mock.calls.every(
+        (c) => (c as unknown[])[0] === 'manage-users',
+      ),
+    ).toBe(true);
+    expect(bodies).toEqual([
+      {
+        method: 'POST',
+        body: {action: 'invite', email: 'sam@example.com', role: 'power_user'},
+      },
+      {method: 'POST', body: {action: 'reset_password', userId: 'u1'}},
+      {method: 'POST', body: {action: 'reset_mfa', userId: 'u1'}},
+      {method: 'POST', body: {action: 'set_role', userId: 'u1', role: 'admin'}},
+      {method: 'POST', body: {action: 'remove', userId: 'u1'}},
+    ]);
+  });
+
+  it('reports the function error body for a refused change', async () => {
+    const f = fakeSupabase();
+    f.functions.invoke.mockResolvedValueOnce({
+      data: null,
+      error: {
+        message: 'Edge Function returned a non-2xx status code',
+        context: new Response(
+          JSON.stringify({error: 'That email already has an account.'}),
+        ),
+      },
+    });
+    await expect(
+      createSupabaseApi(f.sb).inviteUser('a@b.co', 'admin'),
+    ).rejects.toThrow('That email already has an account.');
+  });
+
+  it('pages the user audit with an optional action filter', async () => {
+    const f = fakeSupabase({
+      user_audit: [
+        {
+          data: [
+            {
+              id: 7,
+              occurred_at: '2026-11-10T00:00:00Z',
+              action: 'mfa_reset',
+              actor_email: 'admin@example.com',
+              target_email: 'sam@example.com',
+              detail: 'Authenticator removed',
+            },
+          ],
+          error: null,
+          count: 30,
+        },
+        {data: [], error: null},
+      ],
+    });
+    const api = createSupabaseApi(f.sb);
+    const page = await api.loadUserAudit({
+      action: 'mfa_reset',
+      page: 1,
+      pageSize: 25,
+    });
+    expect(page.total).toBe(30);
+    expect(page.rows[0]).toEqual({
+      id: 7,
+      occurredAt: '2026-11-10T00:00:00Z',
+      action: 'mfa_reset',
+      actorEmail: 'admin@example.com',
+      targetEmail: 'sam@example.com',
+      detail: 'Authenticator removed',
+    });
+    expect(steps(f.calls[0])).toBe('select.order.range.eq');
+    expect(f.calls[0]?.steps[2]).toEqual(['range', [25, 49]]);
+
+    const all = await api.loadUserAudit({action: 'all', page: 0, pageSize: 25});
+    expect(all.total).toBe(0);
+    expect(steps(f.calls[1])).toBe('select.order.range');
   });
 });

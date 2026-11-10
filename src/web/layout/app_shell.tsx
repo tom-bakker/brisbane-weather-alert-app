@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import type {ReactNode} from 'react';
 import {DISCLAIMER} from '../../domain/notifications';
+import type {CurrentUser} from '../../domain/users';
+import {RoleBadge} from '../users/role_badge';
 import {Button} from '../components/ui';
 import {ThemeToggle} from '../theme/theme_toggle';
 
@@ -28,7 +30,7 @@ const PAGE_ICONS: Record<PageId, LucideIcon> = {
 };
 
 interface AppShellProps {
-  email: string;
+  user: CurrentUser;
   page: PageId;
   onNavigate: (page: PageId) => void;
   onSignOut: () => void;
@@ -37,7 +39,7 @@ interface AppShellProps {
 
 /** Header navigation, page body and the permanent disclaimer footer. */
 export function AppShell({
-  email,
+  user,
   page,
   onNavigate,
   onSignOut,
@@ -78,8 +80,9 @@ export function AppShell({
           <div className="flex items-center gap-2">
             <span className="text-muted hidden items-center gap-1 text-sm sm:inline-flex">
               <UserCircle aria-hidden="true" className="h-4 w-4" />
-              {email}
+              {user.email}
             </span>
+            <RoleBadge role={user.role} />
             <ThemeToggle />
             <Button
               variant="secondary"

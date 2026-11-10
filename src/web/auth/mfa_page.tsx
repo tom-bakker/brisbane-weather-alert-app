@@ -89,7 +89,7 @@ export function MfaEnrolPage({onVerified}: {onVerified: () => void}) {
   return (
     <AuthFrame title="Set up two-step verification">
       <p className="text-muted mb-4 text-sm">
-        The admin account must use an authenticator app (for example Google
+        Every account must use an authenticator app (for example Google
         Authenticator, Microsoft Authenticator, Aegis or 2FAS) in addition to
         the password.
       </p>

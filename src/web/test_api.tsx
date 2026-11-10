@@ -13,12 +13,28 @@ import type {
   EmailAuditEntry,
   MailGroup,
 } from '../domain/types';
-import type {AuditPage, AuthStep, DashboardData, DataApi} from './data/api';
+import type {AppUser, UserAuditEntry, UserRole} from '../domain/users';
+import type {
+  AuditPage,
+  AuthStep,
+  DashboardData,
+  DataApi,
+  UserAuditQuery,
+} from './data/api';
 import {ApiProvider} from './data/api_context';
 
 /** An in-memory DataApi whose methods are all spies. */
 export class FakeApi implements DataApi {
-  step: AuthStep = {kind: 'signed_in', email: 'admin@example.com'};
+  step: AuthStep = {
+    kind: 'signed_in',
+    email: 'admin@example.com',
+    role: 'admin',
+  };
+  users: AppUser[] = [
+    makeUser({id: 'u1', email: 'admin@example.com', role: 'admin'}),
+    makeUser({id: 'u2', email: 'sam@example.com', role: 'power_user'}),
+  ];
+  userAudit: UserAuditEntry[] = [];
   dashboard: DashboardData = {airports: [], feeds: []};
   history: AlertRecord[] = [];
   groups: MailGroup[] = [makeGroup()];
@@ -75,10 +91,41 @@ export class FakeApi implements DataApi {
     this.sections[category] = defaultSection(category);
   });
 
+  setPassword = vi.fn(async (_password: string) => {});
+  listUsers = vi.fn(async () => this.users);
+  inviteUser = vi.fn(async (_email: string, _role: UserRole) => {});
+  resetUserPassword = vi.fn(async (_userId: string) => {});
+  resetUserMfa = vi.fn(async (_userId: string) => {});
+  setUserRole = vi.fn(async (_userId: string, _role: UserRole) => {});
+  removeUser = vi.fn(async (_userId: string) => {});
+  loadUserAudit = vi.fn(async (q: UserAuditQuery) => {
+    const rows = this.userAudit.filter(
+      (r) => q.action === 'all' || r.action === q.action,
+    );
+    return {
+      rows: rows.slice(q.page * q.pageSize, (q.page + 1) * q.pageSize),
+      total: rows.length,
+    };
+  });
+
   /** Simulates Supabase announcing an auth change. */
   emitAuthChange(): void {
     for (const l of this.listeners) l();
   }
+}
+
+/** An active user; override any field. */
+export function makeUser(overrides: Partial<AppUser> = {}): AppUser {
+  return {
+    id: 'u9',
+    email: 'user@example.com',
+    role: 'power_user',
+    invitedAt: '2026-11-01T00:00:00Z',
+    emailConfirmed: true,
+    mfaEnrolled: true,
+    lastSignInAt: '2026-11-09T00:00:00Z',
+    ...overrides,
+  };
 }
 
 /** Renders `ui` with `api` provided. */
