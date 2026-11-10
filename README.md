@@ -30,11 +30,12 @@ flowchart LR
     BOM[BoM anonymous FTP<br/>QLD warnings]
   end
   subgraph GitHub
-    JOB[Actions: alert cycle<br/>every 10 min]
+    JOB[Actions: alert cycle<br/>workflow_dispatch]
     PAGES[Pages: React app]
     SEC[(Actions secrets)]
   end
   DB[(Supabase Postgres<br/>+ Auth with MFA)]
+  CRON[Supabase pg_cron<br/>every 10 min] -->|Edge Function| JOB
   GMAIL[Gmail SMTP]
   U[Admin browser]
 

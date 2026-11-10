@@ -35,6 +35,12 @@ export const THRESHOLDS = {
   ],
 } as const satisfies Record<string, readonly Band[]>;
 
+/**
+ * How often the alert cycle runs (the Supabase pg_cron job in
+ * supabase/migrations/20261111000000_alert_cycle_cron.sql). Keep in step.
+ */
+export const ALERT_CYCLE_MINUTES = 10;
+
 /** METARs are half-hourly, so allow for one missed report plus delay. */
 export const STALE_AFTER_MINUTES = 75;
 

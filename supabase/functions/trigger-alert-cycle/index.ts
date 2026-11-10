@@ -1,13 +1,20 @@
-// Supabase Edge Function (Deno): starts the "Alert cycle" GitHub workflow
-// when the dashboard's "Refresh now" button is pressed.
+// Supabase Edge Function (Deno): starts the "Alert cycle" GitHub workflow.
+// Two callers are allowed:
+//   * the dashboard's "Refresh now" button: the caller's JWT must pass
+//     public.is_admin() (admin signed in with MFA), the same check row-level
+//     security uses;
+//   * the pg_cron job every 10 minutes (migration 20261111000000): it sends
+//     the shared secret CRON_SECRET in the x-cron-secret header.
 //
-// Only the admin, signed in with MFA, may call it: the caller's JWT must pass
-// public.is_admin(), the same check row-level security uses.
+// Deploy with --no-verify-jwt: the cron call carries no user JWT, and this
+// function does all of its own authorisation (above).
 //
 // Secrets (set with `supabase secrets set`, never in the repository):
 //   GITHUB_DISPATCH_TOKEN  fine-grained token, this repo only, Actions: write
 //   GITHUB_REPO            "owner/name"
 //   GITHUB_REF             branch to run on (default "main")
+//   CRON_SECRET            long random string; the same value is stored in
+//                          Supabase Vault as alert_cycle_cron_secret
 //   ALLOWED_ORIGIN         the web app's origin, e.g. https://you.github.io
 //                          (required: the function refuses every request
 //                          until it is set, rather than allowing any origin)
@@ -49,6 +56,31 @@ async function callerIsAdmin(authorization: string): Promise<boolean> {
   return error === null && data === true;
 }
 
+/** Compares two strings in time that does not depend on where they differ. */
+function timingSafeEqual(a: string, b: string): boolean {
+  const x = new TextEncoder().encode(a);
+  const y = new TextEncoder().encode(b);
+  if (x.length !== y.length) return false;
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+  return diff === 0;
+}
+
+/** True when the request comes from the pg_cron job (shared secret). */
+function callerIsCron(req: Request): boolean {
+  const expected = Deno.env.get('CRON_SECRET') ?? '';
+  const given = req.headers.get('x-cron-secret');
+  // An unset or short secret never matches, so the cron path fails closed.
+  return expected.length >= 32 && given !== null &&
+    timingSafeEqual(given, expected);
+}
+
+async function callerIsAuthorised(req: Request): Promise<boolean> {
+  if (callerIsCron(req)) return true;
+  const authorization = req.headers.get('Authorization');
+  return authorization !== null && (await callerIsAdmin(authorization));
+}
+
 async function dispatchWorkflow(
   token: string,
   repo: string,
@@ -80,8 +112,7 @@ Deno.serve(async (req) => {
     return new Response('ok', {headers: corsHeaders});
   if (req.method !== 'POST') return json(405, {error: 'Use POST.'});
 
-  const authorization = req.headers.get('Authorization');
-  if (authorization === null || !(await callerIsAdmin(authorization))) {
+  if (!(await callerIsAuthorised(req))) {
     return json(403, {error: 'Not authorised to refresh the feeds.'});
   }
 

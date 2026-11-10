@@ -3,10 +3,10 @@
 name: Alert cycle
 
 on:
-  schedule:
-    # Every 10 minutes, offset from the top of the hour, when GitHub's
-    # scheduler is busiest. GitHub may still delay runs under load.
-    - cron: '7,17,27,37,47,57 * * * *'
+  # Started every 10 minutes by a Supabase pg_cron job (through the
+  # trigger-alert-cycle Edge Function), and by the dashboard's "Refresh now".
+  # GitHub's own `schedule` trigger is not used: it dropped most runs.
+  # See supabase/migrations/20261111000000_alert_cycle_cron.sql.
   workflow_dispatch:
 
 # Never run two cycles at once; a queued run waits for the current one.
