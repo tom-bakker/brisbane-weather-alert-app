@@ -3,8 +3,12 @@ import {
   defaultSection,
   defaultSections,
   EDITABLE_CATEGORIES,
+  EMAIL_PHASES,
   GUIDANCE_MAX,
+  isEmailPhase,
   mergeSections,
+  phaseLabel,
+  withSection,
   sameSection,
   sectionProblem,
   TITLE_MAX,
@@ -16,16 +20,38 @@ import {makeAlert} from './test_fixtures';
 import {ALERT_CATEGORIES} from './types';
 
 function section(overrides: Partial<EmailSection> = {}): EmailSection {
-  return {...defaultSection('wind'), ...overrides};
+  return {...defaultSection('wind', 'watch'), ...overrides};
 }
 
 describe('email sections', () => {
-  it('has a default for every category', () => {
+  it('has a valid default for every category and phase', () => {
     const sections = defaultSections();
     for (const category of ALERT_CATEGORIES) {
-      expect(sections[category].category).toBe(category);
-      expect(sectionProblem(sections[category])).toBeNull();
+      for (const phase of EMAIL_PHASES) {
+        const s = sections[category][phase];
+        expect(s).toMatchObject({category, phase});
+        expect(sectionProblem(s)).toBeNull();
+      }
     }
+  });
+
+  it('gives each level of a weather alert its own default guidance', () => {
+    for (const category of EDITABLE_CATEGORIES) {
+      const guidance = EMAIL_PHASES.map(
+        (phase) => defaultSection(category, phase).guidance,
+      );
+      expect(new Set(guidance).size).toBe(EMAIL_PHASES.length);
+    }
+  });
+
+  it('labels each phase', () => {
+    expect(EMAIL_PHASES.map(phaseLabel)).toEqual([
+      'Info',
+      'Watch',
+      'Warning',
+      'Stand-down',
+      'All clear',
+    ]);
   });
 
   it('lists the six weather sections for editing', () => {
@@ -40,10 +66,28 @@ describe('email sections', () => {
   });
 
   it('lays saved sections over the defaults', () => {
-    const saved = section({category: 'uv', title: 'Sun'});
+    const saved = section({category: 'uv', phase: 'warning', title: 'Sun'});
     const sections = mergeSections([saved]);
-    expect(sections.uv).toBe(saved);
-    expect(sections.wind).toEqual(defaultSection('wind'));
+    expect(sections.uv.warning).toBe(saved);
+    expect(sections.uv.watch).toEqual(defaultSection('uv', 'watch'));
+    expect(sections.wind.warning).toEqual(defaultSection('wind', 'warning'));
+  });
+
+  it('skips saved sections without a known phase', () => {
+    const unphased = {...section({title: 'Old'}), phase: undefined};
+    const sections = mergeSections([unphased as unknown as EmailSection]);
+    expect(sections).toEqual(defaultSections());
+    expect(isEmailPhase('cleared')).toBe(true);
+    expect(isEmailPhase('all')).toBe(false);
+  });
+
+  it('replaces one section without touching the others', () => {
+    const before = defaultSections();
+    const edited = section({phase: 'info', title: 'Breeze'});
+    const after = withSection(before, edited);
+    expect(after.wind.info).toBe(edited);
+    expect(after.wind.watch).toBe(before.wind.watch);
+    expect(before.wind.info.title).toBe('Wind gust');
   });
 
   it.each([
@@ -75,6 +119,7 @@ describe('sameSection', () => {
     expect(sameSection(base, {...base, guidance: 'Other'})).toBe(false);
     expect(sameSection(base, {...base, icon: '🚩'})).toBe(false);
     expect(sameSection(base, {...base, category: 'uv'})).toBe(false);
+    expect(sameSection(base, {...base, phase: 'info'})).toBe(false);
   });
 });
 
@@ -112,18 +157,57 @@ describe('HTML alert email', () => {
     expect(html).toContain(badge);
   });
 
-  it('writes an all-clear without guidance', () => {
-    const email = composeEmail({
-      kind: 'cleared',
-      alert: makeAlert({status: 'cleared', peakLevel: 'warning'}),
-    });
+  it('writes an all-clear with its own section', () => {
+    const sections = mergeSections([
+      section({
+        phase: 'cleared',
+        icon: '✈️',
+        title: 'Wind',
+        guidance: 'Resume.',
+      }),
+    ]);
+    const email = composeEmail(
+      {
+        kind: 'cleared',
+        alert: makeAlert({status: 'cleared', peakLevel: 'warning'}),
+      },
+      sections,
+    );
+    expect(email.subject).toBe('[ALL CLEAR] Wind at Brisbane (YBBN)');
     expect(email.html).toContain('✅ All clear');
-    expect(email.html).toContain('Wind gust has cleared');
+    expect(email.html).toContain('✈️');
+    expect(email.html).toContain('Wind has cleared');
     expect(email.html).toContain('Conditions are back below alert levels.');
     expect(email.html).toContain('Warning');
+    expect(email.html).toContain('Resume.');
+    expect(email.text).toContain('What to do: Resume.');
+  });
+
+  it('writes an all-clear without guidance when it has none', () => {
+    const email = composeEmail(
+      {kind: 'cleared', alert: makeAlert({status: 'cleared'})},
+      mergeSections([section({phase: 'cleared', guidance: ''})]),
+    );
     expect(email.html).not.toContain('What to do');
     expect(email.text).not.toContain('What to do');
   });
+
+  it.each(['info', 'watch', 'warning', 'standdown'] as const)(
+    'uses the %s section for a %s alert',
+    (level) => {
+      const sections = mergeSections(
+        EMAIL_PHASES.map((phase) =>
+          section({phase, title: `Title ${phase}`, guidance: `Do ${phase}`}),
+        ),
+      );
+      const email = composeEmail(
+        {kind: 'raised', alert: makeAlert({level})},
+        sections,
+      );
+      expect(email.subject).toContain(`Title ${level} 27 kt`);
+      expect(email.text).toContain(`What to do: Do ${level}`);
+    },
+  );
 
   it('uses and escapes the edited section', () => {
     const sections = mergeSections([

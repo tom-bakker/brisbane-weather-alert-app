@@ -1,9 +1,9 @@
 import {highestLevel} from './levels';
 import {
-  levelAtOrAbove,
-  levelBelow,
+  DEFAULT_THRESHOLDS,
+  levelFor,
   STALE_AFTER_MINUTES,
-  THRESHOLDS,
+  type Thresholds,
 } from './thresholds';
 import {minutesSince} from './time';
 import type {AlertCategory, BomWarning, Condition, Observation} from './types';
@@ -13,11 +13,16 @@ export interface EvaluationInput {
   observation: Observation | null;
   warnings: readonly BomWarning[];
   now: Date;
+  /** Where each level starts; the built-in defaults when omitted. */
+  thresholds?: Thresholds;
 }
 
-function windCondition(obs: Observation): Condition | null {
+function windCondition(
+  obs: Observation,
+  thresholds: Thresholds,
+): Condition | null {
   const peakKt = Math.max(obs.windKt, obs.gustKt ?? 0);
-  const level = levelAtOrAbove(peakKt, THRESHOLDS.windKt);
+  const level = levelFor('wind', peakKt, thresholds);
   if (level === null) return null;
   const gust = obs.gustKt === null ? '' : `, gusting ${obs.gustKt} kt`;
   return {
@@ -28,9 +33,12 @@ function windCondition(obs: Observation): Condition | null {
   };
 }
 
-function visibilityCondition(obs: Observation): Condition | null {
+function visibilityCondition(
+  obs: Observation,
+  thresholds: Thresholds,
+): Condition | null {
   if (obs.visibilityM === null) return null;
-  const level = levelBelow(obs.visibilityM, THRESHOLDS.visibilityM);
+  const level = levelFor('visibility', obs.visibilityM, thresholds);
   if (level === null) return null;
   return {
     category: 'visibility',
@@ -40,9 +48,12 @@ function visibilityCondition(obs: Observation): Condition | null {
   };
 }
 
-function heatCondition(obs: Observation): Condition | null {
+function heatCondition(
+  obs: Observation,
+  thresholds: Thresholds,
+): Condition | null {
   if (obs.apparentTempC === null) return null;
-  const level = levelAtOrAbove(obs.apparentTempC, THRESHOLDS.apparentTempC);
+  const level = levelFor('heat', obs.apparentTempC, thresholds);
   if (level === null) return null;
   return {
     category: 'heat',
@@ -52,9 +63,12 @@ function heatCondition(obs: Observation): Condition | null {
   };
 }
 
-function uvCondition(obs: Observation): Condition | null {
+function uvCondition(
+  obs: Observation,
+  thresholds: Thresholds,
+): Condition | null {
   if (obs.uvIndex === null) return null;
-  const level = levelAtOrAbove(obs.uvIndex, THRESHOLDS.uvIndex);
+  const level = levelFor('uv', obs.uvIndex, thresholds);
   if (level === null) return null;
   return {
     category: 'uv',
@@ -131,15 +145,20 @@ export function unknownCategories(obs: Observation | null): AlertCategory[] {
 
 /** Applies every alert rule and returns the conditions that are present. */
 export function evaluateConditions(input: EvaluationInput): Condition[] {
-  const {observation: obs, warnings, now} = input;
+  const {
+    observation: obs,
+    warnings,
+    now,
+    thresholds = DEFAULT_THRESHOLDS,
+  } = input;
   const fromObservation =
     obs === null
       ? []
       : [
-          windCondition(obs),
-          visibilityCondition(obs),
-          heatCondition(obs),
-          uvCondition(obs),
+          windCondition(obs, thresholds),
+          visibilityCondition(obs, thresholds),
+          heatCondition(obs, thresholds),
+          uvCondition(obs, thresholds),
         ];
   return [
     ...fromObservation,

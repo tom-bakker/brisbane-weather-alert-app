@@ -4,8 +4,16 @@ import {vi} from 'vitest';
 import {
   defaultSection,
   defaultSections,
+  withSection,
+  type EmailPhase,
   type EmailSection,
 } from '../domain/email_sections';
+import {
+  DEFAULT_THRESHOLDS,
+  type CategoryThresholds,
+  type ThresholdCategory,
+  type Thresholds,
+} from '../domain/thresholds';
 import {makeGroup} from '../domain/test_fixtures';
 import type {
   AlertCategory,
@@ -40,6 +48,7 @@ export class FakeApi implements DataApi {
   groups: MailGroup[] = [makeGroup()];
   audit: EmailAuditEntry[] = [];
   sections = defaultSections();
+  thresholds: Thresholds = DEFAULT_THRESHOLDS;
   listeners: (() => void)[] = [];
 
   authStep = vi.fn(async () => this.step);
@@ -83,12 +92,27 @@ export class FakeApi implements DataApi {
   );
   resendEmail = vi.fn(async (_auditId: number) => {});
 
-  loadEmailSections = vi.fn(async () => ({...this.sections}));
+  loadEmailSections = vi.fn(async () => this.sections);
   saveEmailSection = vi.fn(async (section: EmailSection) => {
-    this.sections[section.category] = section;
+    this.sections = withSection(this.sections, section);
   });
-  resetEmailSection = vi.fn(async (category: AlertCategory) => {
-    this.sections[category] = defaultSection(category);
+  resetEmailSection = vi.fn(
+    async (category: AlertCategory, phase: EmailPhase) => {
+      this.sections = withSection(
+        this.sections,
+        defaultSection(category, phase),
+      );
+    },
+  );
+  loadThresholds = vi.fn(async () => this.thresholds);
+  saveThresholds = vi.fn(async ({category, limits}: CategoryThresholds) => {
+    this.thresholds = {...this.thresholds, [category]: limits};
+  });
+  resetThresholds = vi.fn(async (category: ThresholdCategory) => {
+    this.thresholds = {
+      ...this.thresholds,
+      [category]: DEFAULT_THRESHOLDS[category],
+    };
   });
 
   setPassword = vi.fn(async (_password: string) => {});

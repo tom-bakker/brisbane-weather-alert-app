@@ -149,7 +149,7 @@ function summary(view: EmailView): string {
 }
 
 function guidanceBox(view: EmailView, tone: Tone): string {
-  if (view.event.kind === 'cleared' || view.guidance === '') return '';
+  if (view.guidance === '') return '';
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:20px;"><tr>
 <td ${fill('#f8fafc')}border-left:4px solid ${tone.border};padding:14px 16px;${FONT}">
 <div style="font-size:13px;font-weight:bold;color:${INK};text-transform:uppercase;letter-spacing:1px;padding-bottom:4px;">🦺 What to do</div>

@@ -2,6 +2,7 @@ import type {AirportConfig} from '../domain/airports';
 import type {NewAlert} from '../domain/alert_state';
 import type {MetNoResponse} from '../domain/met_no';
 import type {EmailSection} from '../domain/email_sections';
+import type {CategoryThresholds} from '../domain/thresholds';
 import type {AwcMetar} from '../domain/metar';
 import type {
   AirportCode,
@@ -47,8 +48,10 @@ export interface AlertStore {
   createAlert(alert: NewAlert): Promise<AlertRecord>;
   updateAlert(id: string, patch: Partial<AlertRecord>): Promise<void>;
   mailGroups(): Promise<MailGroup[]>;
-  /** Admin-edited email sections; categories without a row use defaults. */
+  /** Admin-edited email sections; phases without a row use defaults. */
   emailSections(): Promise<EmailSection[]>;
+  /** Admin-edited thresholds; categories without a row use defaults. */
+  alertThresholds(): Promise<CategoryThresholds[]>;
   recordEmail(entry: NewEmailAudit): Promise<void>;
   /**
    * Marks every queued resend as processed and returns the audited emails

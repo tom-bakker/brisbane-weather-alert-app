@@ -256,10 +256,34 @@ describe('SupabaseStore', () => {
   });
 
   it('reads edited email sections', async () => {
-    const row = {category: 'uv', icon: '😎', title: 'Sun', guidance: 'Hat.'};
+    const row = {
+      category: 'uv',
+      phase: 'info',
+      icon: '😎',
+      title: 'Sun',
+      guidance: 'Hat.',
+    };
     const {db, calls} = fakeDb([{data: [row], error: null}]);
     expect(await new SupabaseStore(db).emailSections()).toEqual([row]);
     expect(calls[0]?.table).toBe('email_sections');
+  });
+
+  it('reads edited alert thresholds', async () => {
+    const row = {
+      category: 'wind',
+      info: null,
+      watch: '20',
+      warning: 30,
+      standdown: 40,
+    };
+    const {db, calls} = fakeDb([{data: [row], error: null}]);
+    expect(await new SupabaseStore(db).alertThresholds()).toEqual([
+      {
+        category: 'wind',
+        limits: {info: null, watch: 20, warning: 30, standdown: 40},
+      },
+    ]);
+    expect(calls[0]?.table).toBe('alert_thresholds');
   });
 
   it('records email audit and feed rows', async () => {

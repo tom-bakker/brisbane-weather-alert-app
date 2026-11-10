@@ -2,9 +2,52 @@
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {EMAIL_ICONS} from '../domain/email_sections';
+import {EMAIL_ICONS, EMAIL_PHASES} from '../domain/email_sections';
+import {THRESHOLD_CATEGORIES} from '../domain/thresholds';
 import {ALERT_CATEGORIES} from '../domain/types';
 import {USER_AUDIT_ACTIONS, USER_ROLES} from '../domain/users';
+
+describe('phase_sections_and_thresholds migration', () => {
+  const sql = readFileSync(
+    join(
+      process.cwd(),
+      'supabase/migrations/20261114000000_phase_sections_and_thresholds.sql',
+    ),
+    'utf8',
+  );
+
+  it('allows exactly the email phases', () => {
+    const block = /check \(phase in \(([^)]*)\)\)/.exec(sql)?.[1];
+    expect(quoted(block)).toEqual([...EMAIL_PHASES]);
+  });
+
+  it('keys email sections by category and phase', () => {
+    expect(sql).toContain(
+      'alter table public.email_sections add primary key (category, phase);',
+    );
+  });
+
+  it('allows exactly the measured categories', () => {
+    const block = /check \(category in \(([^)]*)\)\)/.exec(sql)?.[1];
+    expect(quoted(block)).toEqual([...THRESHOLD_CATEGORIES]);
+  });
+
+  it('lets every user read thresholds but only a full admin change them', () => {
+    expect(sql).toContain(
+      'alter table public.alert_thresholds enable row level security;',
+    );
+    expect(sql).toMatch(
+      /for select to authenticated\s+using \(public\.has_app_access\(\)\);/,
+    );
+    for (const action of ['insert', 'update', 'delete'])
+      expect(sql).toMatch(
+        new RegExp(
+          `create policy admin_${action} on public\\.alert_thresholds for ${action}[^;]*is_full_admin\\(\\)`,
+        ),
+      );
+    expect(sql).not.toMatch(/alert_thresholds for all/);
+  });
+});
 
 describe('user_management migration', () => {
   const sql = readFileSync(

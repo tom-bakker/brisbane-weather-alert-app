@@ -1,51 +1,50 @@
+import {
+  DEFAULT_THRESHOLDS,
+  describeThresholds,
+  THRESHOLD_CATEGORIES,
+  type ThresholdCategory,
+  type Thresholds,
+} from './thresholds';
 import type {AlertCategory} from './types';
 
-interface CategoryInfo {
-  label: string;
-  description: string;
-}
-
-const CATEGORY_INFO: Record<AlertCategory, CategoryInfo> = {
-  wind: {
-    label: 'Wind gust',
-    description:
-      'Wind or gust of 25 kt or more (Watch), 35 kt (Warning), 45 kt (Stand-down)',
-  },
-  thunderstorm: {
-    label: 'Thunderstorm',
-    description:
-      'TS reported in the METAR, or a BoM severe thunderstorm warning for the area',
-  },
-  visibility: {
-    label: 'Low visibility',
-    description: 'Visibility below 5,000 m (Watch) or 800 m (Warning)',
-  },
-  heat: {
-    label: 'Heat',
-    description:
-      'Apparent temperature of 35 C or more (Watch) or 38 C (Warning)',
-  },
-  uv: {
-    label: 'UV exposure',
-    description: 'UV index of 3 or more (Info), 8 (Watch), 11 (Warning)',
-  },
-  cyclone: {
-    label: 'Tropical cyclone',
-    description: 'BoM tropical cyclone watch or warning for the area',
-  },
-  data_stale: {
-    label: 'Stale weather data',
-    description:
-      'No fresh observation for more than 75 minutes (system health)',
-  },
+const LABELS: Record<AlertCategory, string> = {
+  wind: 'Wind gust',
+  thunderstorm: 'Thunderstorm',
+  visibility: 'Low visibility',
+  heat: 'Heat',
+  uv: 'UV exposure',
+  cyclone: 'Tropical cyclone',
+  data_stale: 'Stale weather data',
 };
+
+/** Triggers for the categories that don't depend on editable thresholds. */
+const FIXED_DESCRIPTIONS: Record<
+  Exclude<AlertCategory, ThresholdCategory>,
+  string
+> = {
+  thunderstorm:
+    'TS reported in the METAR, or a BoM severe thunderstorm warning for the area',
+  cyclone: 'BoM tropical cyclone watch or warning for the area',
+  data_stale: 'No fresh observation for more than 75 minutes (system health)',
+};
+
+function isThresholdCategory(
+  category: AlertCategory,
+): category is ThresholdCategory {
+  return (THRESHOLD_CATEGORIES as readonly AlertCategory[]).includes(category);
+}
 
 /** Short display label, e.g. "Wind gust". */
 export function categoryLabel(category: AlertCategory): string {
-  return CATEGORY_INFO[category].label;
+  return LABELS[category];
 }
 
 /** One-line description of what triggers the category. */
-export function categoryDescription(category: AlertCategory): string {
-  return CATEGORY_INFO[category].description;
+export function categoryDescription(
+  category: AlertCategory,
+  thresholds: Thresholds = DEFAULT_THRESHOLDS,
+): string {
+  return isThresholdCategory(category)
+    ? describeThresholds(category, thresholds[category])
+    : FIXED_DESCRIPTIONS[category];
 }

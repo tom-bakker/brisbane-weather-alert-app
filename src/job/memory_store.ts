@@ -1,5 +1,6 @@
 import type {NewAlert} from '../domain/alert_state';
 import type {EmailSection} from '../domain/email_sections';
+import type {CategoryThresholds} from '../domain/thresholds';
 import type {
   AirportCode,
   AlertRecord,
@@ -23,6 +24,7 @@ export class MemoryStore implements AlertStore {
   alerts: AlertRecord[] = [];
   groups: MailGroup[] = [];
   sections: EmailSection[] = [];
+  thresholds: CategoryThresholds[] = [];
   emails: EmailAuditEntry[] = [];
   /** Audit ids the admin asked to resend. */
   resendQueue: number[] = [];
@@ -89,6 +91,10 @@ export class MemoryStore implements AlertStore {
 
   async emailSections(): Promise<EmailSection[]> {
     return this.sections;
+  }
+
+  async alertThresholds(): Promise<CategoryThresholds[]> {
+    return this.thresholds;
   }
 
   async recordEmail(entry: NewEmailAudit): Promise<void> {

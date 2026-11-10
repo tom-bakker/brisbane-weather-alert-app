@@ -520,29 +520,38 @@ describe('createSupabaseApi data', () => {
   });
 
   it('loads, saves and resets email sections', async () => {
-    const saved = {category: 'uv', icon: '😎', title: 'Sun', guidance: 'Hat.'};
+    const saved = {
+      category: 'uv',
+      phase: 'warning',
+      icon: '😎',
+      title: 'Sun',
+      guidance: 'Hat.',
+    };
     const f = fakeSupabase({email_sections: [{data: [saved], error: null}]});
     const api = createSupabaseApi(f.sb);
 
     const sections = await api.loadEmailSections();
-    expect(sections.uv).toEqual(saved);
-    expect(sections.wind.title).toBe('Wind gust');
+    expect(sections.uv.warning).toEqual(saved);
+    expect(sections.uv.watch.title).toBe('UV exposure');
+    expect(sections.wind.info.title).toBe('Wind gust');
     await api.saveEmailSection({
       category: 'heat',
+      phase: 'standdown',
       icon: '🔥',
       title: ' Hot ',
       guidance: ' Drink. ',
     });
-    await api.resetEmailSection('heat');
+    await api.resetEmailSection('heat', 'standdown');
 
     expect(f.calls.map((c) => `${c.table}:${steps(c)}`)).toEqual([
       'email_sections:select',
       'email_sections:upsert',
-      'email_sections:delete.eq',
+      'email_sections:delete.eq.eq',
     ]);
     expect(f.calls[1]?.steps[0]?.[1]).toEqual([
       expect.objectContaining({
         category: 'heat',
+        phase: 'standdown',
         icon: '🔥',
         title: 'Hot',
         guidance: 'Drink.',
@@ -550,6 +559,50 @@ describe('createSupabaseApi data', () => {
       }),
     ]);
     expect(f.calls[2]?.steps[1]).toEqual(['eq', ['category', 'heat']]);
+    expect(f.calls[2]?.steps[2]).toEqual(['eq', ['phase', 'standdown']]);
+  });
+
+  it('loads, saves and resets alert thresholds', async () => {
+    const saved = {
+      category: 'heat',
+      info: null,
+      watch: '33',
+      warning: 36.5,
+      standdown: null,
+    };
+    const f = fakeSupabase({alert_thresholds: [{data: [saved], error: null}]});
+    const api = createSupabaseApi(f.sb);
+
+    const thresholds = await api.loadThresholds();
+    expect(thresholds.heat).toEqual({
+      info: null,
+      watch: 33,
+      warning: 36.5,
+      standdown: null,
+    });
+    expect(thresholds.wind.watch).toBe(25);
+    await api.saveThresholds({
+      category: 'uv',
+      limits: {info: 2, watch: 6, warning: 9, standdown: null},
+    });
+    await api.resetThresholds('uv');
+
+    expect(f.calls.map((c) => `${c.table}:${steps(c)}`)).toEqual([
+      'alert_thresholds:select',
+      'alert_thresholds:upsert',
+      'alert_thresholds:delete.eq',
+    ]);
+    expect(f.calls[1]?.steps[0]?.[1]).toEqual([
+      {
+        category: 'uv',
+        info: 2,
+        watch: 6,
+        warning: 9,
+        standdown: null,
+        updated_at: expect.any(String),
+      },
+    ]);
+    expect(f.calls[2]?.steps[1]).toEqual(['eq', ['category', 'uv']]);
   });
 
   it('pages the audit log with an optional status filter', async () => {

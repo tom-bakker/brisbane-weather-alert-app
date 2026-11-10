@@ -12,6 +12,7 @@ import {CATEGORY_ICONS} from '../components/category_icon';
 import {AIRPORTS} from '../../domain/airports';
 import {categoryDescription, categoryLabel} from '../../domain/categories';
 import {levelLabel} from '../../domain/levels';
+import type {Thresholds} from '../../domain/thresholds';
 import {
   ALERT_CATEGORIES,
   ALERT_LEVELS,
@@ -36,11 +37,13 @@ export function toggled<T>(list: readonly T[], item: T, on: boolean): T[] {
 
 interface GroupCardProps {
   group: MailGroup;
+  /** Used to describe what triggers each category. */
+  thresholds: Thresholds;
   onChanged: () => void;
 }
 
 /** One mail group: subscriptions, minimum level and members. */
-export function GroupCard({group, onChanged}: GroupCardProps) {
+export function GroupCard({group, thresholds, onChanged}: GroupCardProps) {
   const api = useApi();
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +143,7 @@ export function GroupCard({group, onChanged}: GroupCardProps) {
               key={c}
               label={categoryLabel(c)}
               icon={CATEGORY_ICONS[c]}
-              description={categoryDescription(c)}
+              description={categoryDescription(c, thresholds)}
               checked={group.categories.includes(c)}
               disabled={busy}
               onChange={(on) =>

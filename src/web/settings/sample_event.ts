@@ -1,12 +1,10 @@
+import type {EmailPhase} from '../../domain/email_sections';
 import type {
   AlertCategory,
   AlertEvent,
   AlertLevel,
   AlertRecord,
 } from '../../domain/types';
-
-/** What the preview shows: an alert at one level, or its all-clear. */
-export type PreviewLevel = AlertLevel | 'cleared';
 
 const SAMPLES: Record<AlertCategory, {value: string; message: string}> = {
   wind: {value: '38 kt', message: 'Wind 24 kt, gusting 38 kt.'},
@@ -30,11 +28,11 @@ const UPDATED = '2026-11-10T00:15:00.000Z';
 /** A realistic Brisbane alert event, for previewing the email layout. */
 export function sampleEvent(
   category: AlertCategory,
-  level: PreviewLevel,
+  phase: EmailPhase,
 ): AlertEvent {
   const {value, message} = SAMPLES[category];
-  const cleared = level === 'cleared';
-  const alertLevel: AlertLevel = cleared ? 'warning' : level;
+  const cleared = phase === 'cleared';
+  const alertLevel: AlertLevel = cleared ? 'warning' : phase;
   const alert: AlertRecord = {
     id: 'preview',
     airport: 'YBBN',

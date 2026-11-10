@@ -1,4 +1,13 @@
-import type {EmailSection, EmailSections} from '../../domain/email_sections';
+import type {
+  EmailPhase,
+  EmailSection,
+  EmailSections,
+} from '../../domain/email_sections';
+import type {
+  CategoryThresholds,
+  ThresholdCategory,
+  Thresholds,
+} from '../../domain/thresholds';
 import type {
   AirportCode,
   AlertCategory,
@@ -146,11 +155,18 @@ export interface DataApi {
    */
   resendEmail(auditId: number): Promise<void>;
 
-  /** Every category's email section: saved where edited, else default. */
+  /** Every category's email sections: saved where edited, else default. */
   loadEmailSections(): Promise<EmailSections>;
   saveEmailSection(section: EmailSection): Promise<void>;
-  /** Drops the saved section so the category goes back to its default. */
-  resetEmailSection(category: AlertCategory): Promise<void>;
+  /** Drops the saved section so that phase goes back to its default. */
+  resetEmailSection(category: AlertCategory, phase: EmailPhase): Promise<void>;
+
+  /** Where each alert level starts: saved where edited, else default. */
+  loadThresholds(): Promise<Thresholds>;
+  // Admin only (the database checks too).
+  saveThresholds(thresholds: CategoryThresholds): Promise<void>;
+  /** Drops the saved limits so the category goes back to its defaults. */
+  resetThresholds(category: ThresholdCategory): Promise<void>;
 
   // Admin only (the server checks too).
   listUsers(): Promise<AppUser[]>;
