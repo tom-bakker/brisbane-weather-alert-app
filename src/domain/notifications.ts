@@ -48,7 +48,7 @@ function subjectFor(view: EmailView): string {
 }
 
 function textFor(view: EmailView): string {
-  const {event, title, place, guidance, appUrl} = view;
+  const {event, title, place, guidance} = view;
   const {alert} = event;
   const lines =
     event.kind === 'cleared'
@@ -65,17 +65,16 @@ function textFor(view: EmailView): string {
         ];
   if (event.kind !== 'cleared' && guidance !== '')
     lines.push('', `What to do: ${guidance}`);
-  if (appUrl !== null) lines.push('', `Dashboard: ${appUrl}`);
   return [...lines, '', DISCLAIMER].join('\n');
 }
 
 /**
  * Builds the subject and bodies for an alert event. `sections` supplies the
- * admin-edited icon, title and guidance for each category.
+ * admin-edited icon, title and guidance for each category. Emails carry no
+ * links, so recipients are never asked to click through from a message.
  */
 export function composeEmail(
   event: AlertEvent,
-  appUrl: string | null = null,
   sections: EmailSections = defaultSections(),
 ): EmailContent {
   const airport = airportByCode(event.alert.airport);
@@ -86,7 +85,6 @@ export function composeEmail(
     title: section.title.trim(),
     icon: section.icon,
     guidance: section.guidance.trim(),
-    appUrl,
     disclaimer: DISCLAIMER,
   };
   return {

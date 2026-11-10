@@ -12,11 +12,6 @@ const LEVEL_OPTIONS: {value: PreviewLevel; label: string}[] = [
   {value: 'cleared', label: 'All clear'},
 ];
 
-/** The dashboard link the job puts in emails, as seen from this page. */
-function appUrl(): string {
-  return `${window.location.origin}${window.location.pathname}`;
-}
-
 /** Renders the real alert email for a sample event, as recipients see it. */
 export function EmailPreview({
   category,
@@ -28,7 +23,7 @@ export function EmailPreview({
   const [level, setLevel] = useState<PreviewLevel>('watch');
   const selectId = useId();
   const email = useMemo(
-    () => composeEmail(sampleEvent(category, level), appUrl(), sections),
+    () => composeEmail(sampleEvent(category, level), sections),
     [category, level, sections],
   );
 

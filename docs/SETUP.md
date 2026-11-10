@@ -69,7 +69,6 @@ Go to **Settings → Secrets and variables → Actions**.
 | --- | --- |
 | `VITE_SUPABASE_URL` | Project URL (same as above) |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase **publishable** key |
-| `APP_URL` | Your Pages URL (used as a link in emails) |
 | `ALERT_FROM_NAME` | Optional sender name, default "Airport Weather Alerts" |
 
 ## 5. First run

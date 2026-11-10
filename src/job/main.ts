@@ -35,7 +35,6 @@ function dryRunDeps(): AlertCycleDeps {
     mailer: printOnly,
     airports: AIRPORTS,
     now: () => new Date(),
-    appUrl: null,
     log,
   };
 }
@@ -58,7 +57,6 @@ function liveDeps(): AlertCycleDeps {
     }),
     airports: AIRPORTS,
     now: () => new Date(),
-    appUrl: config.appUrl,
     log,
   };
 }
