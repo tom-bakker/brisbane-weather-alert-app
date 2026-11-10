@@ -93,6 +93,7 @@ export interface EmailAuditRow {
   event: string;
   status: string;
   error: string | null;
+  resend_of: number | null;
 }
 
 export interface FeedLogRow {
@@ -251,6 +252,7 @@ export function rowToEmailAudit(r: EmailAuditRow): EmailAuditEntry {
     event: r.event as AlertEventKind,
     status: r.status as EmailAuditEntry['status'],
     error: r.error,
+    resendOf: r.resend_of,
   };
 }
 

@@ -117,6 +117,11 @@ export interface DataApi {
   removeMember(memberId: string): Promise<void>;
 
   loadAudit(query: AuditQuery): Promise<AuditPage>;
+  /**
+   * Queues a copy of an audited email for its original recipients. The
+   * alert cycle sends it; `refreshFeeds` starts a cycle without waiting.
+   */
+  resendEmail(auditId: number): Promise<void>;
 
   /** Every category's email section: saved where edited, else default. */
   loadEmailSections(): Promise<EmailSections>;

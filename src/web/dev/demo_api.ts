@@ -227,6 +227,7 @@ function auditRow(
     event: 'raised',
     status: 'sent',
     error: null,
+    resendOf: null,
     ...overrides,
   };
 }
@@ -266,6 +267,7 @@ export function createDemoApi(): DataApi {
       rows: AUDIT,
       total: AUDIT.length,
     }),
+    resendEmail: noop,
     loadEmailSections: async () => ({...sections}),
     saveEmailSection: async (section) => {
       sections[section.category] = section;

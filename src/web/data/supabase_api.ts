@@ -40,6 +40,9 @@ export function unwrap<T>(result: {
   return result.data as NonNullable<T>;
 }
 
+/** Postgres error code for a unique index conflict. */
+const UNIQUE_VIOLATION = '23505';
+
 /** Edge function that dispatches the "Alert cycle" GitHub workflow. */
 const REFRESH_FUNCTION = 'trigger-alert-cycle';
 
@@ -258,6 +261,16 @@ export function createSupabaseApi(sb: SupabaseClient): DataApi {
         rows: rows.map(rowToEmailAudit),
         total: result.count ?? rows.length,
       };
+    },
+
+    async resendEmail(auditId) {
+      const {error} = await sb
+        .from('email_resend_requests')
+        .insert({audit_id: auditId});
+      if (error?.code === UNIQUE_VIOLATION) {
+        throw new Error('A resend of this email is already queued.');
+      }
+      unwrap({data: null, error});
     },
 
     async loadEmailSections() {

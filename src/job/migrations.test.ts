@@ -29,3 +29,28 @@ describe('email_sections migration', () => {
     expect(quoted(block)).toEqual([...ALERT_CATEGORIES]);
   });
 });
+
+describe('email_resend migration', () => {
+  const sql = readFileSync(
+    join(process.cwd(), 'supabase/migrations/20261112000000_email_resend.sql'),
+    'utf8',
+  );
+
+  it('lets only the admin queue resends, one pending per email', () => {
+    expect(sql).toContain(
+      'alter table public.email_resend_requests enable row level security;',
+    );
+    expect(sql).toMatch(
+      /create policy admin_insert on public\.email_resend_requests\s+for insert to authenticated with check \(public\.is_admin\(\)\);/,
+    );
+    expect(sql).toMatch(
+      /create unique index [a-z_]+\s+on public\.email_resend_requests \(audit_id\) where processed_at is null;/,
+    );
+  });
+
+  it('links each resent copy to the email it repeats', () => {
+    expect(sql).toMatch(
+      /add column resend_of bigint references public\.email_audit \(id\) on delete set null/,
+    );
+  });
+});

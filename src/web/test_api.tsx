@@ -65,6 +65,7 @@ export class FakeApi implements DataApi {
       };
     },
   );
+  resendEmail = vi.fn(async (_auditId: number) => {});
 
   loadEmailSections = vi.fn(async () => ({...this.sections}));
   saveEmailSection = vi.fn(async (section: EmailSection) => {
