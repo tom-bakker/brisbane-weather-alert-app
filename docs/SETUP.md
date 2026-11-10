@@ -104,11 +104,23 @@ minutes are free on a public repository.
 1. On GitHub: **Settings → Developer settings → Fine-grained tokens → Generate
    new token**. Repository access: **only** this repository. Permissions:
    **Actions: Read and write**. Nothing else. Set an expiry and diarise renewal.
-2. With the [Supabase CLI](https://supabase.com/docs/guides/cli), linked to the
-   project:
+2. With the [Supabase CLI](https://supabase.com/docs/guides/cli). It needs no
+   install: `npx supabase` downloads and runs it. Sign in and link this
+   folder to the project once (the ref is in the dashboard URL,
+   `supabase.com/dashboard/project/<ref>`):
 
    ```bash
-   supabase secrets set GITHUB_DISPATCH_TOKEN=<token> GITHUB_REPO=<owner>/brisbane-weather-alert-app ALLOWED_ORIGIN=https://<owner>.github.io
+   npx supabase login
+   ```
+
+   ```bash
+   npx supabase link --project-ref <ref>
+   ```
+
+   Then set the function's secrets:
+
+   ```bash
+   npx supabase secrets set GITHUB_DISPATCH_TOKEN=<token> GITHUB_REPO=<owner>/brisbane-weather-alert-app ALLOWED_ORIGIN=https://<owner>.github.io
    ```
 
    Then generate the cron secret (64 hex characters from the operating
@@ -119,24 +131,28 @@ minutes are free on a public repository.
    $bytes = New-Object byte[] 32
    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
    $cronSecret = -join ($bytes | ForEach-Object { $_.ToString('x2') })
-   supabase secrets set "CRON_SECRET=$cronSecret"
+   npx supabase secrets set "CRON_SECRET=$cronSecret"
    Set-Clipboard -Value $cronSecret
    ```
 
    (macOS/Linux: `cronSecret=$(openssl rand -hex 32)`, then
-   `supabase secrets set "CRON_SECRET=$cronSecret"`.) Keep that terminal
+   `npx supabase secrets set "CRON_SECRET=$cronSecret"`.) Keep that terminal
    open: step 3 pastes the same value into Vault.
 
    ```bash
-   supabase functions deploy trigger-alert-cycle --no-verify-jwt
+   npx supabase functions deploy trigger-alert-cycle --no-verify-jwt
    ```
 
    `--no-verify-jwt` is needed because the cron call has no user sign-in. The
    function still refuses any caller that is neither the admin with MFA nor
-   holding `CRON_SECRET`.
+   holding `CRON_SECRET`. If the deploy says Docker is not running, add
+   `--use-api`.
 
-3. Apply the migrations (`supabase db push`), then in the Supabase **SQL
-   Editor** store the function URL and the same secret in Vault:
+3. **SQL Editor** → paste the contents of
+   `supabase/migrations/20261111000000_alert_cycle_cron.sql` → **Run**, the
+   same way as the schema in section 2. (Don't use `supabase db push`: it
+   would try to re-run the migrations already applied.) Then store the
+   function URL and the same secret in Vault:
 
    ```sql
    select vault.create_secret('https://<ref>.supabase.co/functions/v1/trigger-alert-cycle', 'alert_cycle_function_url');
@@ -172,7 +188,7 @@ missing). Everything else keeps working.
 
 - **The GitHub dispatch token expires.** When it does, the cron job and
   Refresh now both stop starting runs (`net._http_response` shows 502).
-  Generate a new token and run `supabase secrets set GITHUB_DISPATCH_TOKEN=…`.
+  Generate a new token and run `npx supabase secrets set GITHUB_DISPATCH_TOKEN=…`.
 - **Supabase pauses free projects after a week of inactivity.** The alert
   cycle writes every 10 minutes, which keeps the project active.
 - A failed email makes the workflow run fail, so GitHub notifies the repo owner.
