@@ -3,7 +3,7 @@ import {describe, expect, it} from 'vitest';
 import {airportByCode} from './airports';
 import {categoryDescription, categoryLabel} from './categories';
 import {highestLevel, isAtLeast, levelLabel, levelRank} from './levels';
-import {levelAtOrAbove, levelBelow, THRESHOLDS} from './thresholds';
+import {DEFAULT_THRESHOLDS, levelFor} from './thresholds';
 import {
   formatAestTime,
   formatAge,
@@ -45,7 +45,7 @@ describe('thresholds', () => {
     [35, 'warning'],
     [45, 'standdown'],
   ])('wind %i kt is %s', (kt, level) => {
-    expect(levelAtOrAbove(kt, THRESHOLDS.windKt)).toBe(level);
+    expect(levelFor('wind', kt, DEFAULT_THRESHOLDS)).toBe(level);
   });
 
   it.each([
@@ -54,7 +54,7 @@ describe('thresholds', () => {
     [800, 'watch'],
     [799, 'warning'],
   ])('visibility %i m is %s', (m, level) => {
-    expect(levelBelow(m, THRESHOLDS.visibilityM)).toBe(level);
+    expect(levelFor('visibility', m, DEFAULT_THRESHOLDS)).toBe(level);
   });
 });
 
@@ -115,6 +115,22 @@ describe('config lookups', () => {
 
   it('describes categories', () => {
     expect(categoryLabel('wind')).toBe('Wind gust');
-    expect(categoryDescription('uv')).toContain('UV index');
+    expect(categoryDescription('uv')).toBe(
+      'UV index of 3 or more (Info), 8 (Watch), 11 (Warning)',
+    );
+    expect(categoryDescription('cyclone')).toContain('BoM tropical cyclone');
+  });
+
+  it('describes categories from the thresholds in use', () => {
+    const thresholds = {
+      ...DEFAULT_THRESHOLDS,
+      visibility: {info: 8000, watch: 3000, warning: null, standdown: 500},
+    };
+    expect(categoryDescription('visibility', thresholds)).toBe(
+      'Visibility below 8,000 m (Info), 3,000 m (Watch), 500 m (Stand-down)',
+    );
+    expect(categoryDescription('wind', thresholds)).toBe(
+      'Wind or gust of 25 kt or more (Watch), 35 kt (Warning), 45 kt (Stand-down)',
+    );
   });
 });

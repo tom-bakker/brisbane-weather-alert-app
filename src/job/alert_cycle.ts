@@ -6,12 +6,19 @@ import {forecastHours, uvIndexAt, type MetNoResponse} from '../domain/met_no';
 import {parseMetar, type AwcMetar} from '../domain/metar';
 import {
   defaultSections,
+  isEmailPhase,
   mergeSections,
   type EmailSections,
 } from '../domain/email_sections';
 import {composeEmail, groupsForEvent} from '../domain/notifications';
 import {resendAudit, resendEmail} from '../domain/resend';
-import {HOLD_MINUTES} from '../domain/thresholds';
+import {
+  DEFAULT_THRESHOLDS,
+  HOLD_MINUTES,
+  mergeThresholds,
+  thresholdsProblem,
+  type Thresholds,
+} from '../domain/thresholds';
 import {minutesSince} from '../domain/time';
 import {
   ALERT_CATEGORIES,
@@ -64,6 +71,14 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** What this run read that every airport's assessment shares. */
+interface AssessmentInputs {
+  metars: AwcMetar[] | null;
+  tafs: AwcTaf[] | null;
+  warnings: readonly BomWarning[];
+  thresholds: Thresholds;
+}
+
 /** What the rules found for one airport. */
 interface Assessment {
   conditions: Condition[];
@@ -88,6 +103,7 @@ class Cycle {
     // unreachable the run fails here, and the alert is raised (and emailed)
     // on the next run instead of being saved without its email.
     const groups = await store.mailGroups();
+    const thresholds = await this.loadThresholds();
     const codes = airports.map((a) => a.code);
     const metars = await this.readFeed('aviationweather-metar', () =>
       feeds.fetchMetars(codes),
@@ -100,7 +116,12 @@ class Cycle {
 
     const events: AlertEvent[] = [];
     for (const airport of airports) {
-      const assessment = await this.assess(airport, metars, tafs, warnings);
+      const assessment = await this.assess(airport, {
+        metars,
+        tafs,
+        warnings,
+        thresholds,
+      });
       events.push(
         ...(await this.applyAssessment(airport.code, assessment, active)),
       );
@@ -174,12 +195,36 @@ class Cycle {
     }
   }
 
+  /**
+   * Edited thresholds over the defaults. A row that breaks the rules (it
+   * can only get there by editing the database directly) is skipped.
+   */
+  private async loadThresholds(): Promise<Thresholds> {
+    try {
+      const saved = await this.deps.store.alertThresholds();
+      return mergeThresholds(
+        saved.filter(({category, limits}) => {
+          const problem = thresholdsProblem(category, limits);
+          if (problem !== null)
+            this.deps.log(
+              `Ignoring ${category} thresholds, using defaults: ${problem}`,
+            );
+          return problem === null;
+        }),
+      );
+    } catch (e) {
+      this.deps.log(
+        `Alert thresholds unreadable, using defaults: ${errorMessage(e)}`,
+      );
+      return DEFAULT_THRESHOLDS;
+    }
+  }
+
   private async assess(
     airport: AirportConfig,
-    metars: AwcMetar[] | null,
-    tafs: AwcTaf[] | null,
-    warnings: readonly BomWarning[],
+    inputs: AssessmentInputs,
   ): Promise<Assessment> {
+    const {metars, tafs, warnings, thresholds} = inputs;
     const stored = await this.deps.store.forecast(airport.code);
     const fresh = await this.fetchHoursIfDue(airport, stored);
     const hours = fresh ?? stored?.hours ?? [];
@@ -194,6 +239,7 @@ class Cycle {
         observation,
         warnings: warnings.filter((w) => w.airport === airport.code),
         now: this.now,
+        thresholds,
       }),
       unknown: unknownCategories(observation),
     };
@@ -295,7 +341,14 @@ class Cycle {
   /** Edited email sections; the built-in ones if they can't be read. */
   private async loadSections(): Promise<EmailSections> {
     try {
-      return mergeSections(await this.deps.store.emailSections());
+      const saved = await this.deps.store.emailSections();
+      const unphased = saved.filter((s) => !isEmailPhase(s.phase));
+      if (unphased.length > 0)
+        this.deps.log(
+          `Ignoring ${unphased.length} email section(s) with no known ` +
+            'phase, using defaults; is the phase migration applied?',
+        );
+      return mergeSections(saved);
     } catch (e) {
       this.deps.log(
         `Email sections unreadable, using defaults: ${errorMessage(e)}`,

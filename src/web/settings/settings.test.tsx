@@ -1,7 +1,7 @@
 import {screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {describe, expect, it} from 'vitest';
-import {defaultSection} from '../../domain/email_sections';
+import {defaultSection, withSection} from '../../domain/email_sections';
 import {FakeApi, renderWithApi} from '../test_api';
 import {SettingsPage} from './settings_page';
 
@@ -74,6 +74,7 @@ describe('SettingsPage', () => {
     expect(api.saveEmailSection).toHaveBeenCalledWith(
       expect.objectContaining({
         category: 'uv',
+        phase: 'watch',
         title: 'Sun safety',
         icon: '😎',
       }),
@@ -82,12 +83,61 @@ describe('SettingsPage', () => {
     expect(sectionButton(/Sun safety/)).toBeInTheDocument();
   });
 
-  it('previews the all-clear', async () => {
+  it('edits and previews the all-clear', async () => {
     await openSections();
-    await userEvent.selectOptions(screen.getByLabelText('Show as'), 'cleared');
+    await userEvent.selectOptions(
+      screen.getByLabelText('Alert level'),
+      'cleared',
+    );
+    expect(screen.getByText('All clear email')).toBeInTheDocument();
     expect(screen.getByTestId('preview-subject')).toHaveTextContent(
       '[ALL CLEAR] Wind gust at Brisbane (YBBN)',
     );
+    const guidance = screen.getByLabelText('What to do');
+    await userEvent.clear(guidance);
+    await userEvent.type(guidance, 'Back to work');
+    expect(screen.getByTitle('Email preview').getAttribute('srcdoc')).toContain(
+      'Back to work',
+    );
+  });
+
+  it('gives each alert level its own icon, title and guidance', async () => {
+    const api = await openSections();
+    const level = screen.getByLabelText('Alert level');
+    await userEvent.selectOptions(level, 'warning');
+    expect(screen.getByLabelText('What to do')).toHaveValue(
+      defaultSection('wind', 'warning').guidance,
+    );
+    const title = screen.getByLabelText('Title');
+    await userEvent.clear(title);
+    await userEvent.type(title, 'Strong wind');
+    await userEvent.click(screen.getByRole('radio', {name: 'Flag'}));
+    expect(screen.getByTestId('preview-subject')).toHaveTextContent(
+      '[WARNING] Strong wind 38 kt at Brisbane (YBBN)',
+    );
+
+    await userEvent.selectOptions(level, 'info');
+    expect(screen.getByLabelText('Title')).toHaveValue('Wind gust');
+    expect(screen.getByRole('radio', {name: 'Wind'})).toBeChecked();
+    expect(
+      screen.getByRole('option', {name: 'Warning (unsaved)'}),
+    ).toBeInTheDocument();
+    expect(sectionButton(/Wind gust/)).toHaveTextContent('Unsaved');
+
+    await userEvent.selectOptions(level, 'warning');
+    expect(screen.getByLabelText('Title')).toHaveValue('Strong wind');
+    expect(sectionButton(/Strong wind/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', {name: 'Save section'}));
+    expect(api.saveEmailSection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'wind',
+        phase: 'warning',
+        title: 'Strong wind',
+        icon: '🚩',
+      }),
+    );
+    expect(await screen.findByText('Saved.')).toBeInTheDocument();
+    expect(screen.getByRole('option', {name: 'Warning'})).toBeInTheDocument();
   });
 
   it('refuses to save an empty title', async () => {
@@ -110,7 +160,10 @@ describe('SettingsPage', () => {
 
   it('resets a section to its default', async () => {
     const api = new FakeApi();
-    api.sections.heat = {...defaultSection('heat'), title: 'Hot'};
+    api.sections = withSection(api.sections, {
+      ...defaultSection('heat', 'watch'),
+      title: 'Hot',
+    });
     await openSections(api);
     await userEvent.click(sectionButton(/Hot/));
     expect(screen.getByLabelText('Title')).toHaveValue('Hot');
@@ -118,7 +171,7 @@ describe('SettingsPage', () => {
     await userEvent.click(
       screen.getByRole('button', {name: 'Reset to default'}),
     );
-    expect(api.resetEmailSection).toHaveBeenCalledWith('heat');
+    expect(api.resetEmailSection).toHaveBeenCalledWith('heat', 'watch');
     expect(await screen.findByText('Reset to default.')).toBeInTheDocument();
     expect(screen.getByLabelText('Title')).toHaveValue('Heat');
   });
@@ -177,6 +230,20 @@ describe('SettingsPage', () => {
     expect(screen.getByTitle('Email preview').getAttribute('srcdoc')).toContain(
       'One<br>Two',
     );
+  });
+
+  it('shows alert thresholds to admins only', async () => {
+    renderWithApi(
+      <SettingsPage user={{email: 'sam@example.com', role: 'power_user'}} />,
+      new FakeApi(),
+    );
+    const tabs = await screen.findByRole('navigation', {name: 'Settings'});
+    expect(
+      within(tabs).queryByRole('button', {name: 'Alert thresholds'}),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('form', {name: 'Wind gust thresholds'}),
+    ).not.toBeInTheDocument();
   });
 
   it('counts guidance characters', async () => {

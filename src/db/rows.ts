@@ -2,7 +2,8 @@
  * Mapping between Supabase (snake_case) rows and domain types. Shared by the
  * scheduled job and the web app so both read the database the same way.
  */
-import type {EmailSection} from '../domain/email_sections';
+import type {EmailPhase, EmailSection} from '../domain/email_sections';
+import type {CategoryThresholds, ThresholdCategory} from '../domain/thresholds';
 import type {
   AirportCode,
   AlertCategory,
@@ -274,6 +275,7 @@ export function rowToFeedLog(r: FeedLogRow): FeedLogEntry {
 
 export interface EmailSectionRow {
   category: string;
+  phase: string;
   icon: string;
   title: string;
   guidance: string;
@@ -282,6 +284,7 @@ export interface EmailSectionRow {
 export function rowToEmailSection(r: EmailSectionRow): EmailSection {
   return {
     category: r.category as AlertCategory,
+    phase: r.phase as EmailPhase,
     icon: r.icon,
     title: r.title,
     guidance: r.guidance,
@@ -291,10 +294,45 @@ export function rowToEmailSection(r: EmailSectionRow): EmailSection {
 export function emailSectionToRow(s: EmailSection): EmailSectionRow {
   return {
     category: s.category,
+    phase: s.phase,
     icon: s.icon,
     title: s.title.trim(),
     guidance: s.guidance.trim(),
   };
+}
+
+/** Postgres numeric may arrive as a string; null means the level is off. */
+type LimitColumn = number | string | null;
+
+export interface AlertThresholdRow {
+  category: string;
+  info: LimitColumn;
+  watch: LimitColumn;
+  warning: LimitColumn;
+  standdown: LimitColumn;
+}
+
+function toLimit(value: LimitColumn): number | null {
+  return value === null ? null : Number(value);
+}
+
+export function rowToThresholds(r: AlertThresholdRow): CategoryThresholds {
+  return {
+    category: r.category as ThresholdCategory,
+    limits: {
+      info: toLimit(r.info),
+      watch: toLimit(r.watch),
+      warning: toLimit(r.warning),
+      standdown: toLimit(r.standdown),
+    },
+  };
+}
+
+export function thresholdsToRow({
+  category,
+  limits,
+}: CategoryThresholds): AlertThresholdRow {
+  return {category, ...limits};
 }
 
 export interface AppUserRow {

@@ -1,6 +1,7 @@
 // @vitest-environment node
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {AIRPORTS} from '../domain/airports';
+import type {EmailSection} from '../domain/email_sections';
 import type {MetNoResponse} from '../domain/met_no';
 import type {AwcMetar} from '../domain/metar';
 import {makeGroup} from '../domain/test_fixtures';
@@ -354,11 +355,19 @@ describe('runAlertCycle', () => {
     expect(summary.emailsSent).toBe(1);
   });
 
-  it('uses the edited email section for the alert category', async () => {
+  it('uses the edited email section for the alert category and level', async () => {
     feeds.metars = [metar('YBBN', {wspd: 40})];
     store.sections = [
       {
         category: 'wind',
+        phase: 'watch',
+        icon: '💨',
+        title: 'Breezy',
+        guidance: 'Not this one.',
+      },
+      {
+        category: 'wind',
+        phase: 'warning',
         icon: '🚩',
         title: 'Strong wind',
         guidance: 'Chock it.',
@@ -374,6 +383,29 @@ describe('runAlertCycle', () => {
     expect(mailer.sent[0]?.text).toContain('What to do: Chock it.');
   });
 
+  it('ignores and logs sections saved before the phase migration', async () => {
+    feeds.metars = [metar('YBBN', {wspd: 40})];
+    // A row read from the old table has no phase column.
+    store.sections = [
+      {
+        category: 'wind',
+        icon: '🚩',
+        title: 'Old wording',
+        guidance: 'Old.',
+      } as unknown as EmailSection,
+    ];
+
+    await runAlertCycle(deps);
+
+    expect(mailer.sent[0]?.subject).toBe(
+      '[WARNING] Wind gust 40 kt at Brisbane (YBBN)',
+    );
+    expect(deps.log).toHaveBeenCalledWith(
+      'Ignoring 1 email section(s) with no known phase, using defaults; ' +
+        'is the phase migration applied?',
+    );
+  });
+
   it('falls back to the default sections when they cannot be read', async () => {
     feeds.metars = [metar('YBBN', {wspd: 40})];
     vi.spyOn(store, 'emailSections').mockRejectedValueOnce(
@@ -386,6 +418,61 @@ describe('runAlertCycle', () => {
     expect(mailer.sent[0]?.subject).toContain('Wind gust');
     expect(deps.log).toHaveBeenCalledWith(
       'Email sections unreadable, using defaults: no table',
+    );
+  });
+
+  /** Level of the Brisbane wind alert the run raised, if any. */
+  function windLevel() {
+    return store.alerts.find(
+      (a) => a.airport === 'YBBN' && a.category === 'wind',
+    )?.level;
+  }
+
+  it('raises alerts at the edited thresholds', async () => {
+    feeds.metars = [metar('YBBN', {wspd: 40})];
+    store.thresholds = [
+      {
+        category: 'wind',
+        limits: {info: null, watch: 20, warning: 50, standdown: null},
+      },
+    ];
+
+    await runAlertCycle(deps);
+
+    expect(windLevel()).toBe('watch');
+    expect(mailer.sent.map((e) => e.subject)).toContain(
+      '[WATCH] Wind gust 40 kt at Brisbane (YBBN)',
+    );
+  });
+
+  it('ignores edited thresholds that break the rules', async () => {
+    feeds.metars = [metar('YBBN', {wspd: 40})];
+    store.thresholds = [
+      {
+        category: 'wind',
+        limits: {info: null, watch: 50, warning: 20, standdown: null},
+      },
+    ];
+
+    await runAlertCycle(deps);
+
+    expect(windLevel()).toBe('warning');
+    expect(deps.log).toHaveBeenCalledWith(
+      'Ignoring wind thresholds, using defaults: Warning must be higher than Watch.',
+    );
+  });
+
+  it('falls back to the default thresholds when they cannot be read', async () => {
+    feeds.metars = [metar('YBBN', {wspd: 40})];
+    vi.spyOn(store, 'alertThresholds').mockRejectedValueOnce(
+      new Error('no table'),
+    );
+
+    await runAlertCycle(deps);
+
+    expect(windLevel()).toBe('warning');
+    expect(deps.log).toHaveBeenCalledWith(
+      'Alert thresholds unreadable, using defaults: no table',
     );
   });
 

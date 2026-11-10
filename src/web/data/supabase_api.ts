@@ -12,8 +12,11 @@ import {
   rowToForecast,
   rowToMailGroup,
   rowToObservation,
+  rowToThresholds,
   rowToWarning,
+  thresholdsToRow,
   type AlertRow,
+  type AlertThresholdRow,
   type EmailAuditRow,
   type EmailSectionRow,
   type FeedLogRow,
@@ -26,6 +29,7 @@ import {AIRPORTS} from '../../domain/airports';
 import type {UserRole} from '../../domain/users';
 import {memoryIntentStore, type IntentStore} from '../auth/auth_link';
 import {mergeSections} from '../../domain/email_sections';
+import {mergeThresholds} from '../../domain/thresholds';
 import type {AirportCode} from '../../domain/types';
 import {
   latestPerSource,
@@ -336,8 +340,36 @@ export function createSupabaseApi(
       );
     },
 
-    async resetEmailSection(category) {
-      unwrap(await sb.from('email_sections').delete().eq('category', category));
+    async resetEmailSection(category, phase) {
+      unwrap(
+        await sb
+          .from('email_sections')
+          .delete()
+          .eq('category', category)
+          .eq('phase', phase),
+      );
+    },
+
+    async loadThresholds() {
+      const rows = unwrap(
+        await sb.from('alert_thresholds').select('*'),
+      ) as AlertThresholdRow[];
+      return mergeThresholds(rows.map(rowToThresholds));
+    },
+
+    async saveThresholds(thresholds) {
+      unwrap(
+        await sb.from('alert_thresholds').upsert({
+          ...thresholdsToRow(thresholds),
+          updated_at: new Date().toISOString(),
+        }),
+      );
+    },
+
+    async resetThresholds(category) {
+      unwrap(
+        await sb.from('alert_thresholds').delete().eq('category', category),
+      );
     },
 
     async listUsers() {

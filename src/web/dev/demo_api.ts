@@ -1,4 +1,9 @@
-import {defaultSection, defaultSections} from '../../domain/email_sections';
+import {
+  defaultSection,
+  defaultSections,
+  withSection,
+} from '../../domain/email_sections';
+import {DEFAULT_THRESHOLDS} from '../../domain/thresholds';
 import type {
   AlertRecord,
   EmailAuditEntry,
@@ -251,7 +256,8 @@ export function createDemoApi(): DataApi {
     role: 'admin',
   };
   const noop = async () => {};
-  const sections = defaultSections();
+  let sections = defaultSections();
+  let thresholds = DEFAULT_THRESHOLDS;
   return {
     authStep: async () => step,
     onAuthChange: () => () => {},
@@ -274,12 +280,19 @@ export function createDemoApi(): DataApi {
       total: AUDIT.length,
     }),
     resendEmail: noop,
-    loadEmailSections: async () => ({...sections}),
+    loadEmailSections: async () => sections,
     saveEmailSection: async (section) => {
-      sections[section.category] = section;
+      sections = withSection(sections, section);
     },
-    resetEmailSection: async (category) => {
-      sections[category] = defaultSection(category);
+    resetEmailSection: async (category, phase) => {
+      sections = withSection(sections, defaultSection(category, phase));
+    },
+    loadThresholds: async () => thresholds,
+    saveThresholds: async ({category, limits}) => {
+      thresholds = {...thresholds, [category]: limits};
+    },
+    resetThresholds: async (category) => {
+      thresholds = {...thresholds, [category]: DEFAULT_THRESHOLDS[category]};
     },
     ...createDemoUsers(),
   };

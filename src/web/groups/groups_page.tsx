@@ -7,6 +7,7 @@ import {
   PageHeading,
   TextField,
 } from '../components/ui';
+import {DEFAULT_THRESHOLDS} from '../../domain/thresholds';
 import {useApi, useAsync} from '../data/api_context';
 import {GroupCard} from './group_card';
 
@@ -15,6 +16,9 @@ export function GroupsPage() {
   const api = useApi();
   const load = useCallback(() => api.listGroups(), [api]);
   const {data: groups, error, reload} = useAsync(load);
+  // Only used to describe each trigger; the defaults do if it can't load.
+  const loadThresholds = useCallback(() => api.loadThresholds(), [api]);
+  const {data: thresholds} = useAsync(loadThresholds);
   const [name, setName] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -62,7 +66,12 @@ export function GroupsPage() {
       )}
       <div className="grid gap-6 lg:grid-cols-2">
         {groups?.map((g) => (
-          <GroupCard key={g.id} group={g} onChanged={reload} />
+          <GroupCard
+            key={g.id}
+            group={g}
+            thresholds={thresholds ?? DEFAULT_THRESHOLDS}
+            onChanged={reload}
+          />
         ))}
       </div>
     </div>

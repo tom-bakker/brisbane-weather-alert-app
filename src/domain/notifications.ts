@@ -1,5 +1,5 @@
 import {airportByCode} from './airports';
-import {defaultSections, type EmailSections} from './email_sections';
+import {defaultSections, phaseOf, type EmailSections} from './email_sections';
 import {renderEmailHtml, type EmailView} from './email_html';
 import {isAtLeast, levelLabel} from './levels';
 import {formatUtcAndAest} from './time';
@@ -63,14 +63,14 @@ function textFor(view: EmailView): string {
           `Started ${formatUtcAndAest(alert.startedAt)}; ` +
             `updated ${formatUtcAndAest(alert.updatedAt)}.`,
         ];
-  if (event.kind !== 'cleared' && guidance !== '')
-    lines.push('', `What to do: ${guidance}`);
+  if (guidance !== '') lines.push('', `What to do: ${guidance}`);
   return [...lines, '', DISCLAIMER].join('\n');
 }
 
 /**
  * Builds the subject and bodies for an alert event. `sections` supplies the
- * admin-edited icon, title and guidance for each category. Emails carry no
+ * admin-edited icon, title and guidance for each category and phase (each
+ * level, and the all-clear). Emails carry no
  * links, so recipients are never asked to click through from a message.
  */
 export function composeEmail(
@@ -78,7 +78,7 @@ export function composeEmail(
   sections: EmailSections = defaultSections(),
 ): EmailContent {
   const airport = airportByCode(event.alert.airport);
-  const section = sections[event.alert.category];
+  const section = sections[event.alert.category][phaseOf(event)];
   const view: EmailView = {
     event,
     place: `${airport.name} (${airport.code})`,

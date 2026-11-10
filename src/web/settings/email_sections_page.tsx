@@ -6,10 +6,14 @@ import {
   defaultSections,
   EDITABLE_CATEGORIES,
   EMAIL_ICONS,
+  EMAIL_PHASES,
   GUIDANCE_MAX,
-  TITLE_MAX,
+  phaseLabel,
   sameSection,
   sectionProblem,
+  TITLE_MAX,
+  withSection,
+  type EmailPhase,
   type EmailSection,
   type EmailSections,
 } from '../../domain/email_sections';
@@ -26,79 +30,103 @@ import {useApi, useAsync} from '../data/api_context';
 import {useUnsavedChanges} from '../layout/unsaved_changes';
 import {EmailPreview} from './email_preview';
 
-type Drafts = Partial<Record<AlertCategory, EmailSection>>;
+type SectionKey = `${AlertCategory}:${EmailPhase}`;
+type Drafts = Partial<Record<SectionKey, EmailSection>>;
+
+function keyOf({
+  category,
+  phase,
+}: {
+  category: AlertCategory;
+  phase: EmailPhase;
+}) {
+  return `${category}:${phase}` as const;
+}
+
+/** The saved sections with every draft laid over them. */
+function withDrafts(saved: EmailSections, drafts: Drafts): EmailSections {
+  return Object.values(drafts).reduce(withSection, saved);
+}
 
 /** Sections whose draft differs from what is saved. */
-function unsavedCategories(
-  drafts: Drafts,
-  saved: EmailSections,
-): Set<AlertCategory> {
+function unsavedKeys(drafts: Drafts, saved: EmailSections): Set<SectionKey> {
   return new Set(
-    EDITABLE_CATEGORIES.filter((c) => {
-      const draft = drafts[c];
-      return draft !== undefined && !sameSection(draft, saved[c]);
-    }),
+    Object.values(drafts)
+      .filter((d) => !sameSection(d, saved[d.category][d.phase]))
+      .map(keyOf),
   );
 }
 
-/** Edit the icon, title and guidance each alert category adds to emails. */
+/**
+ * Edit the icon, title and guidance each alert category adds to its emails,
+ * separately for each level and for the all-clear.
+ */
 export function EmailSectionsPage() {
   const api = useApi();
   const load = useCallback(() => api.loadEmailSections(), [api]);
   const {data, error, reload} = useAsync(load);
   const fallback = useMemo(() => defaultSections(), []);
-  const [selected, setSelected] = useState<AlertCategory>('wind');
+  const [category, setCategory] = useState<AlertCategory>('wind');
+  const [phase, setPhase] = useState<EmailPhase>('watch');
   const [drafts, setDrafts] = useState<Drafts>({});
 
   // Until the saved sections load (or if they can't), show the defaults so
   // the page still works before the database migration is applied.
   const saved = data ?? (error !== null ? fallback : null);
   const unsaved = useMemo(
-    () =>
-      saved === null
-        ? new Set<AlertCategory>()
-        : unsavedCategories(drafts, saved),
+    () => (saved === null ? new Set<SectionKey>() : unsavedKeys(drafts, saved)),
     [drafts, saved],
+  );
+  const current = useMemo(
+    () => (saved === null ? null : withDrafts(saved, drafts)),
+    [saved, drafts],
   );
   useUnsavedChanges(unsaved.size > 0);
 
-  const draft = drafts[selected] ?? saved?.[selected];
-  const preview = useMemo(
-    () =>
-      saved === null || draft === undefined
-        ? null
-        : {...saved, [selected]: draft},
-    [saved, selected, draft],
-  );
+  function keep(section: EmailSection) {
+    setDrafts((all) => ({...all, [keyOf(section)]: section}));
+  }
 
   return (
     <div className="space-y-6">
       <PageHeading
         icon={LayoutList}
         title="Email sections"
-        subtitle="The heading icon, title and guidance each alert type adds to its email."
+        subtitle="The heading icon, title and guidance each alert type adds to its email, for every alert level."
       />
       {data === null && error !== null && <LoadWarning error={error} />}
-      {saved !== null && draft !== undefined && preview !== null && (
+      {current !== null && (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
           <SectionList
-            sections={{...saved, ...drafts}}
+            sections={current}
+            phase={phase}
             unsaved={unsaved}
-            selected={selected}
-            onSelect={setSelected}
+            selected={category}
+            onSelect={setCategory}
           />
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-2">
-            <SectionEditor
-              key={selected}
-              draft={draft}
-              unsaved={unsaved.has(selected)}
-              onChange={(next) => setDrafts({...drafts, [selected]: next})}
-              onStored={(stored) => {
-                setDrafts({...drafts, [selected]: stored});
-                reload();
-              }}
+          <div className="space-y-4">
+            <PhasePicker
+              value={phase}
+              unsaved={(p) => unsaved.has(keyOf({category, phase: p}))}
+              onChange={setPhase}
             />
-            <EmailPreview category={selected} sections={preview} />
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-2">
+              <SectionEditor
+                key={keyOf({category, phase})}
+                draft={current[category][phase]}
+                unsaved={unsaved.has(keyOf({category, phase}))}
+                onChange={keep}
+                onStored={(stored) => {
+                  keep(stored);
+                  reload();
+                }}
+              />
+              <EmailPreview
+                category={category}
+                phase={phase}
+                sections={current}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -122,14 +150,25 @@ function LoadWarning({error}: {error: string}) {
   );
 }
 
+function UnsavedBadge() {
+  return (
+    <span className="shrink-0 rounded bg-amber-100 px-1.5 text-xs font-semibold text-amber-900 dark:bg-amber-500/20 dark:text-amber-200">
+      Unsaved
+    </span>
+  );
+}
+
 function SectionList({
   sections,
+  phase,
   unsaved,
   selected,
   onSelect,
 }: {
   sections: EmailSections;
-  unsaved: ReadonlySet<AlertCategory>;
+  /** Which phase's icon and title to show for each category. */
+  phase: EmailPhase;
+  unsaved: ReadonlySet<SectionKey>;
   selected: AlertCategory;
   onSelect: (category: AlertCategory) => void;
 }) {
@@ -137,8 +176,11 @@ function SectionList({
     <nav aria-label="Email sections">
       <ul className="space-y-1">
         {EDITABLE_CATEGORIES.map((category) => {
-          const section = sections[category];
+          const section = sections[category][phase];
           const current = category === selected;
+          const edited = EMAIL_PHASES.some((p) =>
+            unsaved.has(keyOf({category, phase: p})),
+          );
           return (
             <li key={category}>
               <button
@@ -158,11 +200,7 @@ function SectionList({
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2 text-sm font-medium">
                     <span className="truncate">{section.title}</span>
-                    {unsaved.has(category) && (
-                      <span className="shrink-0 rounded bg-amber-100 px-1.5 text-xs font-semibold text-amber-900 dark:bg-amber-500/20 dark:text-amber-200">
-                        Unsaved
-                      </span>
-                    )}
+                    {edited && <UnsavedBadge />}
                   </span>
                   <span className="text-muted block truncate text-xs">
                     {section.guidance || 'No guidance'}
@@ -174,6 +212,42 @@ function SectionList({
         })}
       </ul>
     </nav>
+  );
+}
+
+/** Chooses which alert level (or the all-clear) is edited and previewed. */
+function PhasePicker({
+  value,
+  unsaved,
+  onChange,
+}: {
+  value: EmailPhase;
+  unsaved: (phase: EmailPhase) => boolean;
+  onChange: (phase: EmailPhase) => void;
+}) {
+  const id = useId();
+  return (
+    <div className="border-line bg-surface flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-4 py-3">
+      <label htmlFor={id} className="text-ink-soft text-sm font-medium">
+        Alert level
+      </label>
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value as EmailPhase)}
+        className="border-line-strong bg-surface text-ink focus:ring-accent rounded-md border px-2 py-1 text-sm focus:ring-2 focus:outline-none"
+      >
+        {EMAIL_PHASES.map((phase) => (
+          <option key={phase} value={phase}>
+            {phaseLabel(phase)}
+            {unsaved(phase) ? ' (unsaved)' : ''}
+          </option>
+        ))}
+      </select>
+      <p className="text-muted text-xs">
+        Each level and the all-clear has its own icon, title and guidance.
+      </p>
+    </div>
   );
 }
 
@@ -265,10 +339,10 @@ function SectionEditor({
   }
 
   async function reset() {
-    const {category} = draft;
+    const {category, phase} = draft;
     await store(
-      () => api.resetEmailSection(category),
-      defaultSection(category),
+      () => api.resetEmailSection(category, phase),
+      defaultSection(category, phase),
       'Reset to default.',
     );
   }
@@ -276,6 +350,9 @@ function SectionEditor({
   return (
     <Card>
       <form onSubmit={save} className="space-y-4">
+        <h3 className="text-ink text-sm font-semibold">
+          {phaseLabel(draft.phase)} email
+        </h3>
         <IconPicker value={draft.icon} onChange={(icon) => change({icon})} />
         <TextField
           label="Title"

@@ -1,5 +1,6 @@
 import {clsx} from 'clsx';
 import {
+  Gauge,
   History,
   LayoutList,
   Mail,
@@ -14,6 +15,7 @@ import {GroupsPage} from '../groups/groups_page';
 import {UserAuditPage} from '../users/user_audit_page';
 import {UsersPage} from '../users/users_page';
 import {EmailSectionsPage} from './email_sections_page';
+import {ThresholdsPage} from './thresholds_page';
 
 interface Tab {
   id: string;
@@ -25,6 +27,7 @@ interface Tab {
 
 const TABS = [
   {id: 'sections', label: 'Email sections', icon: LayoutList, adminOnly: false},
+  {id: 'thresholds', label: 'Alert thresholds', icon: Gauge, adminOnly: true},
   {id: 'groups', label: 'Mail groups', icon: Mail, adminOnly: false},
   {id: 'audit', label: 'Email audit', icon: ScrollText, adminOnly: false},
   {id: 'users', label: 'Users', icon: Users, adminOnly: true},
@@ -32,12 +35,19 @@ const TABS = [
 ] as const satisfies readonly Tab[];
 type TabId = (typeof TABS)[number]['id'];
 
-/** Every tab but sections, which stays mounted (see below). */
+/** Tabs kept mounted while hidden, so unsaved edits survive a tab switch. */
+type EditorTabId = 'sections' | 'thresholds';
+
+function isEditorTab(id: TabId): id is EditorTabId {
+  return id === 'sections' || id === 'thresholds';
+}
+
+/** Every tab but the editors, which stay mounted (see below). */
 function OtherPanel({
   id,
   user,
 }: {
-  id: Exclude<TabId, 'sections'>;
+  id: Exclude<TabId, EditorTabId>;
   user: CurrentUser;
 }) {
   switch (id) {
@@ -84,11 +94,16 @@ export function SettingsPage({user}: {user: CurrentUser}) {
           </button>
         ))}
       </nav>
-      {/* Kept mounted while hidden so unsaved section edits survive a tab switch. */}
+      {/* Kept mounted while hidden so unsaved edits survive a tab switch. */}
       <div hidden={tab !== 'sections'}>
         <EmailSectionsPage />
       </div>
-      {tab !== 'sections' && <OtherPanel id={tab} user={user} />}
+      {user.role === 'admin' && (
+        <div hidden={tab !== 'thresholds'}>
+          <ThresholdsPage />
+        </div>
+      )}
+      {!isEditorTab(tab) && <OtherPanel id={tab} user={user} />}
     </div>
   );
 }
