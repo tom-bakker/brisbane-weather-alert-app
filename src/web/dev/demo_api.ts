@@ -1,3 +1,4 @@
+import {defaultSection, defaultSections} from '../../domain/email_sections';
 import type {
   AlertRecord,
   EmailAuditEntry,
@@ -244,6 +245,7 @@ const AUDIT: EmailAuditEntry[] = [
 export function createDemoApi(): DataApi {
   const step: AuthStep = {kind: 'signed_in', email: 'demo@example.com'};
   const noop = async () => {};
+  const sections = defaultSections();
   return {
     authStep: async () => step,
     onAuthChange: () => () => {},
@@ -264,5 +266,12 @@ export function createDemoApi(): DataApi {
       rows: AUDIT,
       total: AUDIT.length,
     }),
+    loadEmailSections: async () => ({...sections}),
+    saveEmailSection: async (section) => {
+      sections[section.category] = section;
+    },
+    resetEmailSection: async (category) => {
+      sections[category] = defaultSection(category);
+    },
   };
 }

@@ -5,8 +5,7 @@ import {
   Info,
   LayoutDashboard,
   LogOut,
-  Mail,
-  ScrollText,
+  Settings,
   UserCircle,
   type LucideIcon,
 } from 'lucide-react';
@@ -18,16 +17,14 @@ import {ThemeToggle} from '../theme/theme_toggle';
 export const PAGES = [
   {id: 'dashboard', label: 'Dashboard'},
   {id: 'alerts', label: 'Alerts'},
-  {id: 'groups', label: 'Mail groups'},
-  {id: 'audit', label: 'Email audit'},
+  {id: 'settings', label: 'Settings'},
 ] as const;
 export type PageId = (typeof PAGES)[number]['id'];
 
 const PAGE_ICONS: Record<PageId, LucideIcon> = {
   dashboard: LayoutDashboard,
   alerts: Bell,
-  groups: Mail,
-  audit: ScrollText,
+  settings: Settings,
 };
 
 interface AppShellProps {

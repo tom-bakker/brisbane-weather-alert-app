@@ -3,18 +3,21 @@ import {
   alertToRow,
   observationToRow,
   rowToAlert,
+  rowToEmailSection,
   rowToForecast,
   rowToMailGroup,
   rowToObservation,
   rowToWarning,
   warningToRow,
   type AlertRow,
+  type EmailSectionRow,
   type ForecastRow,
   type MailGroupRow,
   type ObservationRow,
   type WarningRow,
 } from '../db/rows';
 import type {NewAlert} from '../domain/alert_state';
+import type {EmailSection} from '../domain/email_sections';
 import type {
   AirportCode,
   AlertRecord,
@@ -154,6 +157,14 @@ export class SupabaseStore implements AlertStore {
       'read mail groups',
     ) as MailGroupRow[];
     return rows.map(rowToMailGroup);
+  }
+
+  async emailSections(): Promise<EmailSection[]> {
+    const rows = unwrap(
+      await this.db.from('email_sections').select('*'),
+      'read email sections',
+    ) as EmailSectionRow[];
+    return rows.map(rowToEmailSection);
   }
 
   async recordEmail(entry: NewEmailAudit): Promise<void> {

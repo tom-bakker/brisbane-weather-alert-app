@@ -357,6 +357,47 @@ describe('runAlertCycle', () => {
     expect(summary.emailsSent).toBe(1);
   });
 
+  it('uses the edited email section for the alert category', async () => {
+    feeds.metars = [metar('YBBN', {wspd: 40})];
+    store.sections = [
+      {
+        category: 'wind',
+        icon: '🚩',
+        title: 'Strong wind',
+        guidance: 'Chock it.',
+      },
+    ];
+
+    await runAlertCycle(deps);
+
+    expect(mailer.sent[0]?.subject).toBe(
+      '[WARNING] Strong wind 40 kt at Brisbane (YBBN)',
+    );
+    expect(mailer.sent[0]?.html).toContain('🚩');
+    expect(mailer.sent[0]?.text).toContain('What to do: Chock it.');
+  });
+
+  it('falls back to the default sections when they cannot be read', async () => {
+    feeds.metars = [metar('YBBN', {wspd: 40})];
+    vi.spyOn(store, 'emailSections').mockRejectedValueOnce(
+      new Error('no table'),
+    );
+
+    const summary = await runAlertCycle(deps);
+
+    expect(summary.emailsSent).toBe(1);
+    expect(mailer.sent[0]?.subject).toContain('Wind gust');
+    expect(deps.log).toHaveBeenCalledWith(
+      'Email sections unreadable, using defaults: no table',
+    );
+  });
+
+  it('does not read email sections when nothing changed', async () => {
+    const spy = vi.spyOn(store, 'emailSections');
+    await runAlertCycle(deps);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   it('keeps emailing other groups when an audit write fails', async () => {
     feeds.metars = [metar('YBBN', {wspd: 40})];
     store.groups = [

@@ -60,7 +60,7 @@ function uvCondition(obs: Observation): Condition | null {
     category: 'uv',
     level,
     value: `UV ${obs.uvIndex}`,
-    message: `UV index ${obs.uvIndex}: shirt, SPF50+ sunscreen, hat, shade and sunglasses.`,
+    message: `UV index ${obs.uvIndex}.`,
   };
 }
 

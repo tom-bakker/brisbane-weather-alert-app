@@ -4,6 +4,11 @@ import {parseAmocWarnings} from '../domain/bom_warnings';
 import {evaluateConditions, unknownCategories} from '../domain/evaluate';
 import {forecastHours, uvIndexAt, type MetNoResponse} from '../domain/met_no';
 import {parseMetar, type AwcMetar} from '../domain/metar';
+import {
+  defaultSections,
+  mergeSections,
+  type EmailSections,
+} from '../domain/email_sections';
 import {composeEmail, groupsForEvent} from '../domain/notifications';
 import {HOLD_MINUTES} from '../domain/thresholds';
 import {minutesSince} from '../domain/time';
@@ -270,10 +275,24 @@ class Cycle {
     groups: readonly MailGroup[],
     events: readonly AlertEvent[],
   ): Promise<void> {
+    if (events.length === 0) return;
+    const sections = await this.loadSections();
     for (const event of events) {
       for (const group of groupsForEvent(groups, event)) {
-        await this.sendToGroup(event, group);
+        await this.sendToGroup(event, group, sections);
       }
+    }
+  }
+
+  /** Edited email sections; the built-in ones if they can't be read. */
+  private async loadSections(): Promise<EmailSections> {
+    try {
+      return mergeSections(await this.deps.store.emailSections());
+    } catch (e) {
+      this.deps.log(
+        `Email sections unreadable, using defaults: ${errorMessage(e)}`,
+      );
+      return defaultSections();
     }
   }
 
@@ -281,8 +300,12 @@ class Cycle {
    * Sends one email to one group and writes the audit row either way. An
    * audit failure is logged and counted, but never stops the other emails.
    */
-  private async sendToGroup(event: AlertEvent, group: MailGroup) {
-    const content = composeEmail(event, this.deps.appUrl);
+  private async sendToGroup(
+    event: AlertEvent,
+    group: MailGroup,
+    sections: EmailSections,
+  ) {
+    const content = composeEmail(event, this.deps.appUrl, sections);
     const recipients = group.members.map((m) => m.email);
     let error: string | null = null;
     try {

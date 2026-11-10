@@ -1,8 +1,18 @@
 import {render} from '@testing-library/react';
 import type {ReactElement} from 'react';
 import {vi} from 'vitest';
+import {
+  defaultSection,
+  defaultSections,
+  type EmailSection,
+} from '../domain/email_sections';
 import {makeGroup} from '../domain/test_fixtures';
-import type {AlertRecord, EmailAuditEntry, MailGroup} from '../domain/types';
+import type {
+  AlertCategory,
+  AlertRecord,
+  EmailAuditEntry,
+  MailGroup,
+} from '../domain/types';
 import type {AuditPage, AuthStep, DashboardData, DataApi} from './data/api';
 import {ApiProvider} from './data/api_context';
 
@@ -13,6 +23,7 @@ export class FakeApi implements DataApi {
   history: AlertRecord[] = [];
   groups: MailGroup[] = [makeGroup()];
   audit: EmailAuditEntry[] = [];
+  sections = defaultSections();
   listeners: (() => void)[] = [];
 
   authStep = vi.fn(async () => this.step);
@@ -54,6 +65,14 @@ export class FakeApi implements DataApi {
       };
     },
   );
+
+  loadEmailSections = vi.fn(async () => ({...this.sections}));
+  saveEmailSection = vi.fn(async (section: EmailSection) => {
+    this.sections[section.category] = section;
+  });
+  resetEmailSection = vi.fn(async (category: AlertCategory) => {
+    this.sections[category] = defaultSection(category);
+  });
 
   /** Simulates Supabase announcing an auth change. */
   emitAuthChange(): void {

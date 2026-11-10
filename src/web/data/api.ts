@@ -1,3 +1,4 @@
+import type {EmailSection, EmailSections} from '../../domain/email_sections';
 import type {
   AirportCode,
   AlertCategory,
@@ -116,6 +117,12 @@ export interface DataApi {
   removeMember(memberId: string): Promise<void>;
 
   loadAudit(query: AuditQuery): Promise<AuditPage>;
+
+  /** Every category's email section: saved where edited, else default. */
+  loadEmailSections(): Promise<EmailSections>;
+  saveEmailSection(section: EmailSection): Promise<void>;
+  /** Drops the saved section so the category goes back to its default. */
+  resetEmailSection(category: AlertCategory): Promise<void>;
 }
 
 /** Latest entry per feed source, sorted by source name. */

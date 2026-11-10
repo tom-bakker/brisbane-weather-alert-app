@@ -255,6 +255,13 @@ describe('SupabaseStore', () => {
     expect(group?.minLevel).toBe('watch');
   });
 
+  it('reads edited email sections', async () => {
+    const row = {category: 'uv', icon: '😎', title: 'Sun', guidance: 'Hat.'};
+    const {db, calls} = fakeDb([{data: [row], error: null}]);
+    expect(await new SupabaseStore(db).emailSections()).toEqual([row]);
+    expect(calls[0]?.table).toBe('email_sections');
+  });
+
   it('records email audit and feed rows', async () => {
     const {db, calls} = fakeDb();
     const store = new SupabaseStore(db);
