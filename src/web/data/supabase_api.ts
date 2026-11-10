@@ -2,7 +2,11 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 import {
   emailSectionToRow,
   rowToAlert,
+  rowToAppUser,
   rowToEmailSection,
+  rowToUserAudit,
+  type AppUserRow,
+  type UserAuditRow,
   rowToEmailAudit,
   rowToFeedLog,
   rowToForecast,
@@ -19,6 +23,8 @@ import {
   type WarningRow,
 } from '../../db/rows';
 import {AIRPORTS} from '../../domain/airports';
+import type {UserRole} from '../../domain/users';
+import {memoryIntentStore, type IntentStore} from '../auth/auth_link';
 import {mergeSections} from '../../domain/email_sections';
 import type {AirportCode} from '../../domain/types';
 import {
@@ -74,26 +80,60 @@ function groupPatchToRow(patch: GroupPatch): Record<string, unknown> {
   return row;
 }
 
+/** Edge function for inviting, resetting and removing users. */
+const USERS_FUNCTION = 'manage-users';
+
+export interface SupabaseApiOptions {
+  /** Remembers that an invite or reset link asked for a new password. */
+  intents?: IntentStore;
+  /** Why an emailed link failed, shown on the sign-in screen. */
+  linkError?: string | null;
+}
+
 /**
  * DataApi backed by Supabase with the publishable key. Row level security
- * restricts every read and write to the admin after MFA (aal2).
+ * restricts every read and write to a listed user after MFA (aal2), and
+ * user management to admins.
  */
-export function createSupabaseApi(sb: SupabaseClient): DataApi {
+export function createSupabaseApi(
+  sb: SupabaseClient,
+  {intents = memoryIntentStore(), linkError = null}: SupabaseApiOptions = {},
+): DataApi {
+  /** Before MFA: verify, choose a password, or enrol, in that order. */
+  async function beforeMfaStep(email: string): Promise<AuthStep> {
+    const factors = unwrap(await sb.auth.mfa.listFactors());
+    const verified = factors.totp.find((f) => f.status === 'verified');
+    if (verified !== undefined)
+      return {kind: 'verify_mfa', factorId: verified.id};
+    const intent = intents.get();
+    if (intent !== null) return {kind: 'set_password', email, intent};
+    return {kind: 'enrol_mfa'};
+  }
+
   async function authStep(): Promise<AuthStep> {
     const {data} = await sb.auth.getSession();
     const session = data.session;
-    if (session === null) return {kind: 'signed_out'};
-    const aal = unwrap(await sb.auth.mfa.getAuthenticatorAssuranceLevel());
-    if (aal.currentLevel !== 'aal2') {
-      const factors = unwrap(await sb.auth.mfa.listFactors());
-      const verified = factors.totp.find((f) => f.status === 'verified');
-      return verified === undefined
-        ? {kind: 'enrol_mfa'}
-        : {kind: 'verify_mfa', factorId: verified.id};
+    if (session === null) {
+      return linkError === null
+        ? {kind: 'signed_out'}
+        : {kind: 'signed_out', linkError};
     }
     const email = session.user.email ?? '';
-    const isAdmin = unwrap(await sb.rpc('is_admin')) as boolean;
-    return isAdmin ? {kind: 'signed_in', email} : {kind: 'not_admin', email};
+    const role = unwrap(await sb.rpc('my_role')) as UserRole | null;
+    if (role === null) return {kind: 'not_authorised', email};
+    const aal = unwrap(await sb.auth.mfa.getAuthenticatorAssuranceLevel());
+    if (aal.currentLevel !== 'aal2') return await beforeMfaStep(email);
+    const intent = intents.get();
+    if (intent !== null) return {kind: 'set_password', email, intent};
+    return {kind: 'signed_in', email, role};
+  }
+
+  async function manageUsers(body: Record<string, unknown>): Promise<void> {
+    const {error} = await sb.functions.invoke(USERS_FUNCTION, {
+      method: 'POST',
+      body,
+    });
+    if (error !== null) throw new Error(await functionErrorMessage(error));
   }
 
   async function latestObservation(code: AirportCode) {
@@ -127,7 +167,14 @@ export function createSupabaseApi(sb: SupabaseClient): DataApi {
     },
 
     async signOut() {
+      intents.clear();
       unwrap({data: null, ...(await sb.auth.signOut())});
+    },
+
+    async setPassword(password) {
+      const {error} = await sb.auth.updateUser({password});
+      unwrap({data: null, error});
+      intents.clear();
     },
 
     async enrolMfa() {
@@ -291,6 +338,36 @@ export function createSupabaseApi(sb: SupabaseClient): DataApi {
 
     async resetEmailSection(category) {
       unwrap(await sb.from('email_sections').delete().eq('category', category));
+    },
+
+    async listUsers() {
+      const rows = unwrap(await sb.rpc('list_app_users')) as AppUserRow[];
+      return rows.map(rowToAppUser);
+    },
+
+    inviteUser: (email, role) =>
+      manageUsers({action: 'invite', email: email.trim().toLowerCase(), role}),
+    resetUserPassword: (userId) =>
+      manageUsers({action: 'reset_password', userId}),
+    resetUserMfa: (userId) => manageUsers({action: 'reset_mfa', userId}),
+    setUserRole: (userId, role) =>
+      manageUsers({action: 'set_role', userId, role}),
+    removeUser: (userId) => manageUsers({action: 'remove', userId}),
+
+    async loadUserAudit({action, page, pageSize}) {
+      const from = page * pageSize;
+      let query = sb
+        .from('user_audit')
+        .select('*', {count: 'exact'})
+        .order('occurred_at', {ascending: false})
+        .range(from, from + pageSize - 1);
+      if (action !== 'all') query = query.eq('action', action);
+      const result = await query;
+      const rows = unwrap(result) as UserAuditRow[];
+      return {
+        rows: rows.map(rowToUserAudit),
+        total: result.count ?? rows.length,
+      };
     },
   };
 }

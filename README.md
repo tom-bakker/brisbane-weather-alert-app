@@ -12,7 +12,9 @@ It replaces Power Apps and SharePoint with React, Supabase and GitHub.
 
 | Feature | How it works |
 | --- | --- |
-| Admin login | One admin account: email + password **and** an authenticator app (TOTP MFA). Public sign-up is off, and the database only answers a listed admin who has passed MFA. |
+| Login | Email + password **and** an authenticator app (TOTP MFA) for everyone. Public sign-up is off, and the database only answers a listed user who has passed MFA. |
+| User management | Invite only, in **Settings → Users** (admins). Two roles: **Admin** (everything, including users) and **Power user** (mail groups, email sections, audit, dashboard). Admins can reset a password (email via the same Gmail SMTP) or MFA, change roles and remove users, and see only emails, never passwords. |
+| User audit | **Settings → User audit** (admins) lists users added and removed, role changes, password resets and changes, MFA resets and email confirmations, each with a timestamp. Read-only. |
 | Mail groups | Create groups and add or remove email addresses. |
 | Alert toggles | Each group has switches for wind, thunderstorm, low visibility, heat, UV, tropical cyclone and stale data. It also has per-airport switches and a minimum level (Info, Watch, Warning or Stand-down). |
 | Gmail alerts | Emails go out through Gmail SMTP (`smtp.gmail.com:465`) with an app password, Bcc to group members. An alert sends an email when it is raised or escalated, and again for the all-clear. |
@@ -37,7 +39,7 @@ flowchart LR
   DB[(Supabase Postgres<br/>+ Auth with MFA)]
   CRON[Supabase pg_cron<br/>every 10 min] -->|Edge Function| JOB
   GMAIL[Gmail SMTP]
-  U[Admin browser]
+  U[User browser]
 
   AWC & MET & BOM --> JOB
   SEC -. injected at run time .-> JOB
@@ -104,4 +106,4 @@ npm run dev
 | Thresholds editable by an admin without a code change | Not yet: thresholds live in code (one file) |
 | Lightning stand-down entry, acknowledgement, escalation, Teams/push | Not built. The request was for email alerts only, so these are the next phase. |
 | Door and equipment wind limits (AircraftLimit) | Not built: the limits are still "to confirm" in the spec |
-| Roles (Viewer, Supervisor, Admin) | A single admin, as requested |
+| Roles (Viewer, Supervisor, Admin) | Two roles, Admin and Power user, as requested |

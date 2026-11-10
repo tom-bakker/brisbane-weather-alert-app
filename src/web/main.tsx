@@ -2,6 +2,7 @@ import {createClient} from '@supabase/supabase-js';
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import {App} from './app';
+import {parseAuthLink, sessionIntentStore} from './auth/auth_link';
 import {readWebConfig} from './config';
 import {ApiProvider} from './data/api_context';
 import {createSupabaseApi} from './data/supabase_api';
@@ -32,13 +33,22 @@ if (config === null && import.meta.env.DEV) {
     </main>,
   );
 } else {
+  // Read an invite/reset link before the Supabase client consumes the hash.
+  const link = parseAuthLink(window.location.hash);
+  const intents = sessionIntentStore(window.sessionStorage);
+  if (link.intent !== null) intents.set(link.intent);
+  if (link.error !== null) {
+    // An error-only fragment carries no session, so it is safe to drop now.
+    history.replaceState(null, '', window.location.pathname);
+  }
   const supabase = createClient(
     config.supabaseUrl,
     config.supabasePublishableKey,
   );
+  const api = createSupabaseApi(supabase, {intents, linkError: link.error});
   root.render(
     <StrictMode>
-      <ApiProvider api={createSupabaseApi(supabase)}>
+      <ApiProvider api={api}>
         <App />
       </ApiProvider>
     </StrictMode>,

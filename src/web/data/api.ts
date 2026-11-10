@@ -11,14 +11,35 @@ import type {
   MailGroup,
   Observation,
 } from '../../domain/types';
+import type {
+  AppUser,
+  UserAuditAction,
+  UserAuditEntry,
+  UserRole,
+} from '../../domain/users';
 
-/** Where the admin is in the sign-in flow. */
+/** Why a signed-in user must choose a password before going on. */
+export type PasswordIntent = 'invite' | 'recovery';
+
+/** Where the user is in the sign-in flow. */
 export type AuthStep =
-  | {kind: 'signed_out'}
+  | {kind: 'signed_out'; linkError?: string}
   | {kind: 'enrol_mfa'}
   | {kind: 'verify_mfa'; factorId: string}
-  | {kind: 'not_admin'; email: string}
-  | {kind: 'signed_in'; email: string};
+  | {kind: 'set_password'; email: string; intent: PasswordIntent}
+  | {kind: 'not_authorised'; email: string}
+  | {kind: 'signed_in'; email: string; role: UserRole};
+
+export interface UserAuditQuery {
+  action: UserAuditAction | 'all';
+  page: number;
+  pageSize: number;
+}
+
+export interface UserAuditPage {
+  rows: UserAuditEntry[];
+  total: number;
+}
 
 /** A new authenticator-app (TOTP) factor waiting for its first code. */
 export interface MfaEnrolment {
@@ -103,6 +124,8 @@ export interface DataApi {
   signOut(): Promise<void>;
   enrolMfa(): Promise<MfaEnrolment>;
   verifyMfa(factorId: string, code: string): Promise<void>;
+  /** Sets the password after an invite or reset link. */
+  setPassword(password: string): Promise<void>;
 
   loadDashboard(): Promise<DashboardData>;
   loadAlertHistory(limit: number): Promise<AlertRecord[]>;
@@ -128,6 +151,18 @@ export interface DataApi {
   saveEmailSection(section: EmailSection): Promise<void>;
   /** Drops the saved section so the category goes back to its default. */
   resetEmailSection(category: AlertCategory): Promise<void>;
+
+  // Admin only (the server checks too).
+  listUsers(): Promise<AppUser[]>;
+  /** Emails an invitation; the user sets a password and MFA from it. */
+  inviteUser(email: string, role: UserRole): Promise<void>;
+  /** Emails the user a password reset link. */
+  resetUserPassword(userId: string): Promise<void>;
+  /** Removes the user's authenticator; they set up a new one. */
+  resetUserMfa(userId: string): Promise<void>;
+  setUserRole(userId: string, role: UserRole): Promise<void>;
+  removeUser(userId: string): Promise<void>;
+  loadUserAudit(query: UserAuditQuery): Promise<UserAuditPage>;
 }
 
 /** Latest entry per feed source, sorted by source name. */

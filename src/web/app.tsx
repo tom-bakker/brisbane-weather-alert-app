@@ -1,7 +1,9 @@
 import {useCallback, useEffect, useState} from 'react';
+import type {CurrentUser} from '../domain/users';
 import {AlertsPage} from './alerts/alerts_page';
-import {LoginPage} from './auth/login_page';
+import {AuthFrame, LoginPage} from './auth/login_page';
 import {MfaEnrolPage, MfaVerifyPage} from './auth/mfa_page';
+import {SetPasswordPage} from './auth/set_password_page';
 import {Button} from './components/ui';
 import {useApi, useAsync} from './data/api_context';
 import {DashboardPage} from './dashboard/dashboard_page';
@@ -11,26 +13,25 @@ import {
   useConfirmLeave,
 } from './layout/unsaved_changes';
 import {SettingsPage} from './settings/settings_page';
-import {AuthFrame} from './auth/login_page';
 
-function Page({id}: {id: PageId}) {
+function Page({id, user}: {id: PageId; user: CurrentUser}) {
   switch (id) {
     case 'dashboard':
       return <DashboardPage />;
     case 'alerts':
       return <AlertsPage />;
     case 'settings':
-      return <SettingsPage />;
+      return <SettingsPage user={user} />;
   }
 }
 
 /** The app pages; leaving a page with unsaved edits asks first. */
 function SignedInApp({
-  email,
+  user,
   page,
   onNavigate,
 }: {
-  email: string;
+  user: CurrentUser;
   page: PageId;
   onNavigate: (page: PageId) => void;
 }) {
@@ -38,7 +39,7 @@ function SignedInApp({
   const confirmLeave = useConfirmLeave();
   return (
     <AppShell
-      email={email}
+      user={user}
       page={page}
       onNavigate={(next) => {
         if (next !== page && confirmLeave()) onNavigate(next);
@@ -47,7 +48,7 @@ function SignedInApp({
         if (confirmLeave()) void api.signOut();
       }}
     >
-      <Page id={page} />
+      <Page id={page} user={user} />
     </AppShell>
   );
 }
@@ -74,16 +75,25 @@ export function App() {
 
   switch (step.kind) {
     case 'signed_out':
-      return <LoginPage />;
+      return <LoginPage notice={step.linkError} />;
     case 'enrol_mfa':
       return <MfaEnrolPage onVerified={reload} />;
     case 'verify_mfa':
       return <MfaVerifyPage factorId={step.factorId} onVerified={reload} />;
-    case 'not_admin':
+    case 'set_password':
+      return (
+        <SetPasswordPage
+          email={step.email}
+          intent={step.intent}
+          onDone={reload}
+        />
+      );
+    case 'not_authorised':
       return (
         <AuthFrame title="Not authorised">
           <p className="text-ink-soft mb-4 text-sm">
-            {step.email} is not the admin account for this app.
+            {step.email} does not have access to this app. Ask an admin to
+            invite you.
           </p>
           <Button onClick={() => void api.signOut()}>Sign out</Button>
         </AuthFrame>
@@ -91,7 +101,11 @@ export function App() {
     case 'signed_in':
       return (
         <UnsavedChangesProvider>
-          <SignedInApp email={step.email} page={page} onNavigate={setPage} />
+          <SignedInApp
+            user={{email: step.email, role: step.role}}
+            page={page}
+            onNavigate={setPage}
+          />
         </UnsavedChangesProvider>
       );
   }

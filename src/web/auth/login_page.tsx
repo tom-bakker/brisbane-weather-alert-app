@@ -11,8 +11,8 @@ import {useApi} from '../data/api_context';
 const SIGN_IN_MESSAGES: Record<SignInFailure, string> = {
   credentials: 'Sign-in failed. Check your email and password.',
   unconfirmed:
-    'This account has not been confirmed. Confirm the user in the ' +
-    'Supabase dashboard (Authentication → Users), then try again.',
+    'This account has not been confirmed. Open the link in your ' +
+    'invitation email, or ask an admin to invite you again.',
   rate_limited: 'Too many sign-in attempts. Wait a few minutes and try again.',
   unreachable:
     'Could not reach the sign-in service. Check your connection and ' +
@@ -54,8 +54,8 @@ export function AuthFrame({
   );
 }
 
-/** Email and password step for the single admin account. */
-export function LoginPage() {
+/** Email and password step; `notice` explains a failed emailed link. */
+export function LoginPage({notice}: {notice?: string | undefined}) {
   const api = useApi();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -76,7 +76,15 @@ export function LoginPage() {
   }
 
   return (
-    <AuthFrame title="Admin sign-in">
+    <AuthFrame title="Sign in">
+      {notice !== undefined && (
+        <p
+          role="status"
+          className="mb-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200"
+        >
+          {notice}
+        </p>
+      )}
       <form onSubmit={submit} className="flex flex-col gap-4">
         <TextField
           label="Email"

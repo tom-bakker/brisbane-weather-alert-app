@@ -6,6 +6,7 @@ import type {
   MailGroup,
 } from '../../domain/types';
 import type {AuditPage, AuthStep, DashboardData, DataApi} from '../data/api';
+import {createDemoUsers} from './demo_users';
 
 /**
  * Sample data for running the UI locally without Supabase (`npm run dev`
@@ -244,7 +245,11 @@ const AUDIT: EmailAuditEntry[] = [
 
 /** A read-mostly DataApi over the sample data above. */
 export function createDemoApi(): DataApi {
-  const step: AuthStep = {kind: 'signed_in', email: 'demo@example.com'};
+  const step: AuthStep = {
+    kind: 'signed_in',
+    email: 'demo@example.com',
+    role: 'admin',
+  };
   const noop = async () => {};
   const sections = defaultSections();
   return {
@@ -254,6 +259,7 @@ export function createDemoApi(): DataApi {
     signOut: noop,
     enrolMfa: async () => ({factorId: 'f', qrCode: '', secret: ''}),
     verifyMfa: noop,
+    setPassword: noop,
     loadDashboard: async () => dashboard(),
     loadAlertHistory: async () => history(),
     refreshFeeds: () => new Promise((r) => setTimeout(r, 800)),
@@ -275,5 +281,6 @@ export function createDemoApi(): DataApi {
     resetEmailSection: async (category) => {
       sections[category] = defaultSection(category);
     },
+    ...createDemoUsers(),
   };
 }

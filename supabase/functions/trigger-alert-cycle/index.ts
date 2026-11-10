@@ -1,8 +1,8 @@
 // Supabase Edge Function (Deno): starts the "Alert cycle" GitHub workflow.
 // Two callers are allowed:
 //   * the dashboard's "Refresh now" button: the caller's JWT must pass
-//     public.is_admin() (admin signed in with MFA), the same check row-level
-//     security uses;
+//     public.has_app_access() (any app user signed in with MFA), the same
+//     check row-level security uses;
 //   * the pg_cron job every 10 minutes (migration 20261111000000): it sends
 //     the shared secret CRON_SECRET in the x-cron-secret header.
 //
@@ -22,37 +22,17 @@
 // SUPABASE_URL and SUPABASE_ANON_KEY are provided by Supabase.
 
 import {createClient} from 'npm:@supabase/supabase-js@2';
+import {corsHeaders, json, originConfigured} from '../_shared/http.ts';
 
 const WORKFLOW_FILE = 'alert-cycle.yml';
 
-/** The one browser origin allowed to call this function ("" = none). */
-const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN')?.trim() ?? '';
-
-// Without ALLOWED_ORIGIN no Access-Control-Allow-Origin header is sent, so
-// browsers block every cross-origin call: fail closed, never "*".
-const corsHeaders: Record<string, string> = {
-  ...(ALLOWED_ORIGIN === ''
-    ? {}
-    : {'Access-Control-Allow-Origin': ALLOWED_ORIGIN, Vary: 'Origin'}),
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-function json(status: number, body: Record<string, unknown>): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {...corsHeaders, 'Content-Type': 'application/json'},
-  });
-}
-
-async function callerIsAdmin(authorization: string): Promise<boolean> {
+async function callerIsAppUser(authorization: string): Promise<boolean> {
   const sb = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_ANON_KEY') ?? '',
     {global: {headers: {Authorization: authorization}}},
   );
-  const {data, error} = await sb.rpc('is_admin');
+  const {data, error} = await sb.rpc('has_app_access');
   return error === null && data === true;
 }
 
@@ -71,14 +51,15 @@ function callerIsCron(req: Request): boolean {
   const expected = Deno.env.get('CRON_SECRET') ?? '';
   const given = req.headers.get('x-cron-secret');
   // An unset or short secret never matches, so the cron path fails closed.
-  return expected.length >= 32 && given !== null &&
-    timingSafeEqual(given, expected);
+  return (
+    expected.length >= 32 && given !== null && timingSafeEqual(given, expected)
+  );
 }
 
 async function callerIsAuthorised(req: Request): Promise<boolean> {
   if (callerIsCron(req)) return true;
   const authorization = req.headers.get('Authorization');
-  return authorization !== null && (await callerIsAdmin(authorization));
+  return authorization !== null && (await callerIsAppUser(authorization));
 }
 
 async function dispatchWorkflow(
@@ -102,7 +83,7 @@ async function dispatchWorkflow(
 }
 
 Deno.serve(async (req) => {
-  if (ALLOWED_ORIGIN === '') {
+  if (!originConfigured()) {
     console.error('ALLOWED_ORIGIN is not set; refusing all requests.');
     return json(500, {
       error: 'Refresh is not set up on the server yet. See docs/SETUP.md.',

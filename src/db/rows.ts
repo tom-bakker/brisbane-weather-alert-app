@@ -17,6 +17,12 @@ import type {
   MailGroup,
   Observation,
 } from '../domain/types';
+import type {
+  AppUser,
+  UserAuditAction,
+  UserAuditEntry,
+  UserRole,
+} from '../domain/users';
 
 export interface ObservationRow {
   airport: string;
@@ -288,5 +294,47 @@ export function emailSectionToRow(s: EmailSection): EmailSectionRow {
     icon: s.icon,
     title: s.title.trim(),
     guidance: s.guidance.trim(),
+  };
+}
+
+export interface AppUserRow {
+  user_id: string;
+  email: string;
+  role: string;
+  invited_at: string;
+  email_confirmed: boolean;
+  mfa_enrolled: boolean;
+  last_sign_in_at: string | null;
+}
+
+export function rowToAppUser(row: AppUserRow): AppUser {
+  return {
+    id: row.user_id,
+    email: row.email,
+    role: row.role as UserRole,
+    invitedAt: row.invited_at,
+    emailConfirmed: row.email_confirmed,
+    mfaEnrolled: row.mfa_enrolled,
+    lastSignInAt: row.last_sign_in_at,
+  };
+}
+
+export interface UserAuditRow {
+  id: number;
+  occurred_at: string;
+  action: string;
+  actor_email: string | null;
+  target_email: string;
+  detail: string | null;
+}
+
+export function rowToUserAudit(row: UserAuditRow): UserAuditEntry {
+  return {
+    id: row.id,
+    occurredAt: row.occurred_at,
+    action: row.action as UserAuditAction,
+    actorEmail: row.actor_email,
+    targetEmail: row.target_email,
+    detail: row.detail,
   };
 }
