@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import {useCallback, useEffect, useState} from 'react';
 import {AIRPORTS} from '../../domain/airports';
+import {ALERT_CYCLE_MINUTES} from '../../domain/thresholds';
 import {formatAge, formatUtcAndAest} from '../../domain/time';
 import type {AirportCode, FeedLogEntry} from '../../domain/types';
 import {Button, Card, ErrorText, StatusText} from '../components/ui';
@@ -136,6 +137,7 @@ function RefreshNow({onRequested}: {onRequested: () => void}) {
       <Button
         onClick={() => void refresh()}
         disabled={busy || state.kind === 'requested'}
+        title={`Fetch new data now instead of waiting up to ${ALERT_CYCLE_MINUTES} minutes`}
       >
         <RefreshCw
           aria-hidden="true"
@@ -159,7 +161,10 @@ interface DashboardPageProps {
   clock?: () => Date;
 }
 
-/** Live conditions per airport, refreshed every minute. */
+/**
+ * Live conditions per airport. New data arrives every ALERT_CYCLE_MINUTES;
+ * the page re-reads every minute so it shows a new cycle soon after it lands.
+ */
 export function DashboardPage({
   refreshMs = 60_000,
   clock = () => new Date(),
@@ -214,7 +219,9 @@ export function DashboardPage({
               aria-hidden="true"
               className={clsx('h-3 w-3', loading && 'animate-spin')}
             />
-            {loading ? 'Refreshing…' : 'Auto-refreshes every minute'}
+            {loading
+              ? 'Refreshing…'
+              : `Auto-updates every ${ALERT_CYCLE_MINUTES} minutes`}
           </p>
           <RefreshNow onRequested={reload} />
         </div>

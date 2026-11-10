@@ -235,6 +235,19 @@ describe('DashboardPage', () => {
     expect(screen.queryByText(/Update requested/)).not.toBeInTheDocument();
   });
 
+  it('states the real update interval', async () => {
+    renderWithApi(<DashboardPage clock={clock} />, new FakeApi());
+    await screen.findByText('No feed runs recorded yet.');
+
+    expect(
+      screen.getByText('Auto-updates every 10 minutes'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Refresh now'})).toHaveAttribute(
+      'title',
+      'Fetch new data now instead of waiting up to 10 minutes',
+    );
+  });
+
   it('shows why a refresh could not start', async () => {
     const api = new FakeApi();
     api.refreshFeeds.mockRejectedValueOnce(new Error('Not authorised'));

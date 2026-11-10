@@ -108,11 +108,24 @@ minutes are free on a public repository.
    project:
 
    ```bash
-   supabase secrets set GITHUB_DISPATCH_TOKEN=<token> GITHUB_REPO=<owner>/brisbane-weather-alert-app ALLOWED_ORIGIN=https://<owner>.github.io CRON_SECRET=<random>
+   supabase secrets set GITHUB_DISPATCH_TOKEN=<token> GITHUB_REPO=<owner>/brisbane-weather-alert-app ALLOWED_ORIGIN=https://<owner>.github.io
    ```
 
-   For `<random>` use at least 32 random characters, e.g. the output of
-   `openssl rand -hex 32`. Keep it for step 3.
+   Then generate the cron secret (64 hex characters from the operating
+   system's cryptographic random generator) and set it without it ever being
+   printed or saved in shell history. In PowerShell:
+
+   ```powershell
+   $bytes = New-Object byte[] 32
+   [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+   $cronSecret = -join ($bytes | ForEach-Object { $_.ToString('x2') })
+   supabase secrets set "CRON_SECRET=$cronSecret"
+   Set-Clipboard -Value $cronSecret
+   ```
+
+   (macOS/Linux: `cronSecret=$(openssl rand -hex 32)`, then
+   `supabase secrets set "CRON_SECRET=$cronSecret"`.) Keep that terminal
+   open: step 3 pastes the same value into Vault.
 
    ```bash
    supabase functions deploy trigger-alert-cycle --no-verify-jwt
@@ -127,8 +140,14 @@ minutes are free on a public repository.
 
    ```sql
    select vault.create_secret('https://<ref>.supabase.co/functions/v1/trigger-alert-cycle', 'alert_cycle_function_url');
-   select vault.create_secret('<random from step 2>', 'alert_cycle_cron_secret');
+   select vault.create_secret('<paste the cron secret>', 'alert_cycle_cron_secret');
    ```
+
+   Run it, then delete that query from the SQL Editor's list (it may be kept
+   as a snippet) and clear the clipboard
+   (`Set-Clipboard -Value ' '`, and remove it from Win+V clipboard history
+   if that is on). Close the terminal so `$cronSecret` is gone. The value now
+   lives only in the function's secrets and in Vault, both encrypted.
 
 4. Check it: within 10 minutes a run started by `workflow_dispatch` appears
    under **Actions → Alert cycle**. If not, look at the latest rows of
