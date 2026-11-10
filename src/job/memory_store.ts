@@ -1,4 +1,5 @@
 import type {NewAlert} from '../domain/alert_state';
+import type {EmailSection} from '../domain/email_sections';
 import type {
   AirportCode,
   AlertRecord,
@@ -21,6 +22,7 @@ export class MemoryStore implements AlertStore {
   warnings: BomWarning[] = [];
   alerts: AlertRecord[] = [];
   groups: MailGroup[] = [];
+  sections: EmailSection[] = [];
   emails: EmailAuditEntry[] = [];
   feeds: FeedLogEntry[] = [];
   purgedAt: Date | null = null;
@@ -81,6 +83,10 @@ export class MemoryStore implements AlertStore {
 
   async mailGroups(): Promise<MailGroup[]> {
     return this.groups;
+  }
+
+  async emailSections(): Promise<EmailSection[]> {
+    return this.sections;
   }
 
   async recordEmail(entry: NewEmailAudit): Promise<void> {

@@ -2,6 +2,7 @@
  * Mapping between Supabase (snake_case) rows and domain types. Shared by the
  * scheduled job and the web app so both read the database the same way.
  */
+import type {EmailSection} from '../domain/email_sections';
 import type {
   AirportCode,
   AlertCategory,
@@ -260,5 +261,30 @@ export function rowToFeedLog(r: FeedLogRow): FeedLogEntry {
     ok: r.ok,
     records: r.records,
     error: r.error,
+  };
+}
+
+export interface EmailSectionRow {
+  category: string;
+  icon: string;
+  title: string;
+  guidance: string;
+}
+
+export function rowToEmailSection(r: EmailSectionRow): EmailSection {
+  return {
+    category: r.category as AlertCategory,
+    icon: r.icon,
+    title: r.title,
+    guidance: r.guidance,
+  };
+}
+
+export function emailSectionToRow(s: EmailSection): EmailSectionRow {
+  return {
+    category: s.category,
+    icon: s.icon,
+    title: s.title.trim(),
+    guidance: s.guidance.trim(),
   };
 }

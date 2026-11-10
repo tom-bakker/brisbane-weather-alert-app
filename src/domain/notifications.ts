@@ -1,5 +1,6 @@
 import {airportByCode} from './airports';
-import {categoryLabel} from './categories';
+import {defaultSections, type EmailSections} from './email_sections';
+import {renderEmailHtml, type EmailView} from './email_html';
 import {isAtLeast, levelLabel} from './levels';
 import {formatUtcAndAest} from './time';
 import type {AlertEvent, MailGroup} from './types';
@@ -39,53 +40,58 @@ export function groupsForEvent(
   );
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+function subjectFor(view: EmailView): string {
+  const {event, title, place} = view;
+  if (event.kind === 'cleared') return `[ALL CLEAR] ${title} at ${place}`;
+  const level = levelLabel(event.alert.level).toUpperCase();
+  return `[${level}] ${title} ${event.alert.triggerValue} at ${place}`;
 }
 
-function subjectFor(event: AlertEvent, place: string): string {
-  const {alert} = event;
-  const what = categoryLabel(alert.category);
-  if (event.kind === 'cleared') return `[ALL CLEAR] ${what} at ${place}`;
-  const level = levelLabel(alert.level).toUpperCase();
-  return `[${level}] ${what} ${alert.triggerValue} at ${place}`;
-}
-
-function linesFor(event: AlertEvent, place: string, appUrl: string | null) {
+function textFor(view: EmailView): string {
+  const {event, title, place, guidance, appUrl} = view;
   const {alert} = event;
   const lines =
     event.kind === 'cleared'
       ? [
-          `All clear: ${categoryLabel(alert.category)} at ${place}.`,
+          `All clear: ${title} at ${place}.`,
           `Cleared at ${formatUtcAndAest(alert.clearedAt ?? alert.updatedAt)}.`,
           `Peak level was ${levelLabel(alert.peakLevel)}.`,
         ]
       : [
-          `${levelLabel(alert.level)}: ${categoryLabel(alert.category)} at ${place}.`,
+          `${levelLabel(alert.level)}: ${title} at ${place}.`,
           alert.message,
           `Started ${formatUtcAndAest(alert.startedAt)}; ` +
             `updated ${formatUtcAndAest(alert.updatedAt)}.`,
         ];
-  if (appUrl !== null) lines.push(`Dashboard: ${appUrl}`);
-  return [...lines, '', DISCLAIMER];
+  if (event.kind !== 'cleared' && guidance !== '')
+    lines.push('', `What to do: ${guidance}`);
+  if (appUrl !== null) lines.push('', `Dashboard: ${appUrl}`);
+  return [...lines, '', DISCLAIMER].join('\n');
 }
 
-/** Builds the subject and body for an alert event. */
+/**
+ * Builds the subject and bodies for an alert event. `sections` supplies the
+ * admin-edited icon, title and guidance for each category.
+ */
 export function composeEmail(
   event: AlertEvent,
   appUrl: string | null = null,
+  sections: EmailSections = defaultSections(),
 ): EmailContent {
   const airport = airportByCode(event.alert.airport);
-  const place = `${airport.name} (${airport.code})`;
-  const lines = linesFor(event, place, appUrl);
-  const html = lines
-    .filter((line) => line !== '')
-    .map((line) => `<p>${escapeHtml(line)}</p>`)
-    .join('\n');
-  return {subject: subjectFor(event, place), text: lines.join('\n'), html};
+  const section = sections[event.alert.category];
+  const view: EmailView = {
+    event,
+    place: `${airport.name} (${airport.code})`,
+    title: section.title.trim(),
+    icon: section.icon,
+    guidance: section.guidance.trim(),
+    appUrl,
+    disclaimer: DISCLAIMER,
+  };
+  return {
+    subject: subjectFor(view),
+    text: textFor(view),
+    html: renderEmailHtml(view),
+  };
 }

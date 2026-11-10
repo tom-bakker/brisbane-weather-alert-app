@@ -418,6 +418,39 @@ describe('createSupabaseApi data', () => {
     ]);
   });
 
+  it('loads, saves and resets email sections', async () => {
+    const saved = {category: 'uv', icon: '😎', title: 'Sun', guidance: 'Hat.'};
+    const f = fakeSupabase({email_sections: [{data: [saved], error: null}]});
+    const api = createSupabaseApi(f.sb);
+
+    const sections = await api.loadEmailSections();
+    expect(sections.uv).toEqual(saved);
+    expect(sections.wind.title).toBe('Wind gust');
+    await api.saveEmailSection({
+      category: 'heat',
+      icon: '🔥',
+      title: ' Hot ',
+      guidance: ' Drink. ',
+    });
+    await api.resetEmailSection('heat');
+
+    expect(f.calls.map((c) => `${c.table}:${steps(c)}`)).toEqual([
+      'email_sections:select',
+      'email_sections:upsert',
+      'email_sections:delete.eq',
+    ]);
+    expect(f.calls[1]?.steps[0]?.[1]).toEqual([
+      expect.objectContaining({
+        category: 'heat',
+        icon: '🔥',
+        title: 'Hot',
+        guidance: 'Drink.',
+        updated_at: expect.any(String),
+      }),
+    ]);
+    expect(f.calls[2]?.steps[1]).toEqual(['eq', ['category', 'heat']]);
+  });
+
   it('pages the audit log with an optional status filter', async () => {
     const row = {
       id: 1,

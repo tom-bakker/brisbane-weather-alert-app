@@ -1,6 +1,8 @@
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {
+  emailSectionToRow,
   rowToAlert,
+  rowToEmailSection,
   rowToEmailAudit,
   rowToFeedLog,
   rowToForecast,
@@ -9,6 +11,7 @@ import {
   rowToWarning,
   type AlertRow,
   type EmailAuditRow,
+  type EmailSectionRow,
   type FeedLogRow,
   type ForecastRow,
   type MailGroupRow,
@@ -16,6 +19,7 @@ import {
   type WarningRow,
 } from '../../db/rows';
 import {AIRPORTS} from '../../domain/airports';
+import {mergeSections} from '../../domain/email_sections';
 import type {AirportCode} from '../../domain/types';
 import {
   latestPerSource,
@@ -254,6 +258,26 @@ export function createSupabaseApi(sb: SupabaseClient): DataApi {
         rows: rows.map(rowToEmailAudit),
         total: result.count ?? rows.length,
       };
+    },
+
+    async loadEmailSections() {
+      const rows = unwrap(
+        await sb.from('email_sections').select('*'),
+      ) as EmailSectionRow[];
+      return mergeSections(rows.map(rowToEmailSection));
+    },
+
+    async saveEmailSection(section) {
+      unwrap(
+        await sb.from('email_sections').upsert({
+          ...emailSectionToRow(section),
+          updated_at: new Date().toISOString(),
+        }),
+      );
+    },
+
+    async resetEmailSection(category) {
+      unwrap(await sb.from('email_sections').delete().eq('category', category));
     },
   };
 }

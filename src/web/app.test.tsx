@@ -1,6 +1,6 @@
 import {render, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 import {App} from './app';
 import {SignInError} from './data/api';
 import {useApi} from './data/api_context';
@@ -163,6 +163,10 @@ describe('App navigation', () => {
       'page',
     );
 
+    await userEvent.click(screen.getByRole('button', {name: 'Settings'}));
+    expect(
+      await screen.findByRole('heading', {name: 'Email sections'}),
+    ).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', {name: 'Mail groups'}));
     expect(
       await screen.findByRole('heading', {name: 'Mail groups'}),
@@ -182,6 +186,64 @@ describe('App navigation', () => {
     expect(screen.getByText(/Advisory only/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', {name: 'Sign out'}));
     expect(api.signOut).toHaveBeenCalled();
+  });
+});
+
+describe('Leaving unsaved email sections', () => {
+  async function editSection(api: FakeApi) {
+    renderWithApi(<App />, api);
+    await userEvent.click(
+      await screen.findByRole('button', {name: 'Settings'}),
+    );
+    await userEvent.type(await screen.findByLabelText('Title'), ' x');
+  }
+
+  it('asks before leaving, and stays when told to', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const api = new FakeApi();
+    await editSection(api);
+
+    await userEvent.click(screen.getByRole('button', {name: 'Dashboard'}));
+    expect(confirm).toHaveBeenCalledWith(
+      'You have unsaved changes. Leave this page and discard them?',
+    );
+    expect(screen.getByLabelText('Title')).toHaveValue('Wind gust x');
+    await userEvent.click(screen.getByRole('button', {name: 'Sign out'}));
+    expect(api.signOut).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
+    await userEvent.click(screen.getByRole('button', {name: 'Alerts'}));
+    expect(
+      await screen.findByRole('heading', {name: 'Alerts'}),
+    ).toBeInTheDocument();
+    confirm.mockRestore();
+  });
+
+  it('warns the browser on reload only while edits are unsaved', async () => {
+    const api = new FakeApi();
+    renderWithApi(<App />, api);
+    await userEvent.click(
+      await screen.findByRole('button', {name: 'Settings'}),
+    );
+    const clean = new Event('beforeunload', {cancelable: true});
+    window.dispatchEvent(clean);
+    expect(clean.defaultPrevented).toBe(false);
+
+    await userEvent.type(await screen.findByLabelText('Title'), ' x');
+    const dirty = new Event('beforeunload', {cancelable: true});
+    window.dispatchEvent(dirty);
+    expect(dirty.defaultPrevented).toBe(true);
+  });
+
+  it('does not ask when nothing is unsaved', async () => {
+    const confirm = vi.spyOn(window, 'confirm');
+    renderWithApi(<App />, new FakeApi());
+    await userEvent.click(
+      await screen.findByRole('button', {name: 'Settings'}),
+    );
+    await userEvent.click(screen.getByRole('button', {name: 'Alerts'}));
+    expect(confirm).not.toHaveBeenCalled();
+    confirm.mockRestore();
   });
 });
 
