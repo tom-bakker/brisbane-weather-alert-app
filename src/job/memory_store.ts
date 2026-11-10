@@ -24,6 +24,8 @@ export class MemoryStore implements AlertStore {
   groups: MailGroup[] = [];
   sections: EmailSection[] = [];
   emails: EmailAuditEntry[] = [];
+  /** Audit ids the admin asked to resend. */
+  resendQueue: number[] = [];
   feeds: FeedLogEntry[] = [];
   purgedAt: Date | null = null;
   private nextId = 1;
@@ -95,6 +97,12 @@ export class MemoryStore implements AlertStore {
       id: this.nextId++,
       sentAt: new Date().toISOString(),
     });
+  }
+
+  async claimResends(_now: Date): Promise<EmailAuditEntry[]> {
+    const ids = new Set(this.resendQueue);
+    this.resendQueue = [];
+    return this.emails.filter((e) => ids.has(e.id));
   }
 
   async recordFeed(entry: FeedLogEntry): Promise<void> {

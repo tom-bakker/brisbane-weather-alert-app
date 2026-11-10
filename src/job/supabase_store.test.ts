@@ -278,6 +278,7 @@ describe('SupabaseStore', () => {
       event: 'raised',
       status: 'sent',
       error: null,
+      resendOf: 3,
     });
     await store.recordFeed({
       source: 'metar',
@@ -290,6 +291,7 @@ describe('SupabaseStore', () => {
       group_name: 'Ramp',
       alert_id: 'x',
       status: 'sent',
+      resend_of: 3,
     });
     expect(calls[1]?.steps[0]?.[1][0]).toEqual({
       source: 'metar',
@@ -317,6 +319,52 @@ describe('SupabaseStore', () => {
       'lt',
       ['sent_at', '2025-11-08T12:00:00.000Z'],
     ]);
+  });
+
+  it('claims pending resends and reads their original emails', async () => {
+    const auditRow = {
+      id: 7,
+      sent_at: '2026-11-09T11:00:00+00:00',
+      group_id: 'g',
+      group_name: 'Ramp',
+      recipients: ['a@x.com'],
+      subject: 's',
+      body: 'b',
+      alert_id: null,
+      airport: 'YBBN',
+      category: 'wind',
+      level: 'watch',
+      event: 'raised',
+      status: 'failed',
+      error: 'x',
+      resend_of: null,
+    };
+    const {db, calls} = fakeDb([
+      {data: [{email_audit: auditRow}, {email_audit: null}], error: null},
+    ]);
+
+    const claimed = await new SupabaseStore(db).claimResends(NOW);
+
+    expect(claimed.map((e) => [e.id, e.recipients, e.resendOf])).toEqual([
+      [7, ['a@x.com'], null],
+    ]);
+    expect(calls).toEqual([
+      {
+        table: 'email_resend_requests',
+        steps: [
+          ['update', [{processed_at: NOW.toISOString()}]],
+          ['is', ['processed_at', null]],
+          ['select', ['email_audit(*)']],
+        ],
+      },
+    ]);
+  });
+
+  it('fails the run when resends cannot be claimed', async () => {
+    const {db} = fakeDb([{data: null, error: {message: 'timeout'}}]);
+    await expect(new SupabaseStore(db).claimResends(NOW)).rejects.toThrow(
+      'Database claim resends failed: timeout',
+    );
   });
 
   it('surfaces database errors', async () => {

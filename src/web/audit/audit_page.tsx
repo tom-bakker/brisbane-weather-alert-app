@@ -10,10 +10,14 @@ import {
 import {Button, ErrorText, PageHeading, StatusText} from '../components/ui';
 import type {AuditStatusFilter} from '../data/api';
 import {useApi, useAsync} from '../data/api_context';
+import {ResendButton, useRunStarter} from './resend_button';
 
 const PAGE_SIZE = 25;
 
-/** Read-only log of every alert email the system has sent or tried to send. */
+/**
+ * Log of every alert email the system has sent or tried to send. Entries are
+ * read-only; any of them can be resent to its original recipients.
+ */
 export function AuditPage() {
   const api = useApi();
   const [status, setStatus] = useState<AuditStatusFilter>('all');
@@ -23,6 +27,7 @@ export function AuditPage() {
     [api, status, page],
   );
   const {data, error} = useAsync(load);
+  const startRun = useRunStarter();
   const pages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
 
   return (
@@ -76,6 +81,9 @@ export function AuditPage() {
               <th scope="col" className="p-3 font-medium">
                 Status
               </th>
+              <th scope="col" className="p-3 font-medium">
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-line divide-y">
@@ -83,6 +91,11 @@ export function AuditPage() {
               <tr key={row.id} className="align-top">
                 <td className="p-3 whitespace-nowrap">
                   {formatUtcAndAest(row.sentAt)}
+                  {row.resendOf !== null && (
+                    <span className="text-muted block text-xs">
+                      Resent copy
+                    </span>
+                  )}
                 </td>
                 <td className="p-3">{row.groupName}</td>
                 <td className="p-3">
@@ -106,6 +119,9 @@ export function AuditPage() {
                   <StatusText ok={row.status === 'sent'}>
                     {row.status === 'sent' ? 'Sent' : `Failed: ${row.error}`}
                   </StatusText>
+                </td>
+                <td className="p-3">
+                  <ResendButton entry={row} startRun={startRun} />
                 </td>
               </tr>
             ))}

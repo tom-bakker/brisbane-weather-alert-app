@@ -11,7 +11,9 @@ import type {
   FeedLogEntry,
   Forecast,
   MailGroup,
+  NewEmailAudit,
   Observation,
+  OutgoingEmail,
 } from '../domain/types';
 
 /** The subset of an aviationweather.gov TAF JSON record that we read. */
@@ -30,8 +32,7 @@ export interface WeatherFeeds {
   fetchBomWarningDocuments(): Promise<string[]>;
 }
 
-/** An email audit row before the store stamps it. */
-export type NewEmailAudit = Omit<EmailAuditEntry, 'id' | 'sentAt'>;
+export type {NewEmailAudit, OutgoingEmail} from '../domain/types';
 
 /** Persistence used by the alert cycle. */
 export interface AlertStore {
@@ -49,17 +50,14 @@ export interface AlertStore {
   /** Admin-edited email sections; categories without a row use defaults. */
   emailSections(): Promise<EmailSection[]>;
   recordEmail(entry: NewEmailAudit): Promise<void>;
+  /**
+   * Marks every queued resend as processed and returns the audited emails
+   * to resend. A request is claimed by one run only.
+   */
+  claimResends(now: Date): Promise<EmailAuditEntry[]>;
   recordFeed(entry: FeedLogEntry): Promise<void>;
   /** Applies the retention rules (30 days of data, 12 months of audit). */
   purgeOld(now: Date): Promise<void>;
-}
-
-/** One outgoing message. Recipients go in Bcc so they can't see each other. */
-export interface OutgoingEmail {
-  bcc: string[];
-  subject: string;
-  text: string;
-  html: string;
 }
 
 export interface Mailer {

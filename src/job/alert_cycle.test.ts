@@ -417,6 +417,61 @@ describe('runAlertCycle', () => {
       'Audit write failed for "[WARNING] Wind gust 40 kt at Brisbane (YBBN)" to group "One": insert failed',
     );
   });
+
+  describe('resends', () => {
+    let originalId: number;
+
+    beforeEach(async () => {
+      feeds.metars = [metar('YBBN', {wspd: 40})];
+      mailer.fail = true;
+      await runAlertCycle(deps);
+      mailer.fail = false;
+      originalId = store.emails[0]?.id ?? -1;
+      // Resends go to the recorded recipients, not today's members.
+      store.groups = [makeGroup({members: []})];
+    });
+
+    it('sends a queued resend to the original recipients once', async () => {
+      store.resendQueue = [originalId];
+
+      const summary = await runAlertCycle(deps);
+
+      expect(summary).toMatchObject({emailsSent: 1, emailsFailed: 0});
+      expect(mailer.sent).toEqual([
+        expect.objectContaining({
+          bcc: ['sup@example.com'],
+          subject: '[RESENT] [WARNING] Wind gust 40 kt at Brisbane (YBBN)',
+        }),
+      ]);
+      expect(store.emails[1]).toMatchObject({
+        status: 'sent',
+        resendOf: originalId,
+        event: 'raised',
+        groupName: 'Ramp supervisors',
+      });
+      expect(store.emails[1]?.body).toMatch(/^Resent copy of an email/);
+
+      await runAlertCycle(deps);
+      expect(mailer.sent).toHaveLength(1);
+    });
+
+    it('audits a failed resend', async () => {
+      store.resendQueue = [originalId];
+      mailer.fail = true;
+
+      const summary = await runAlertCycle(deps);
+
+      expect(summary).toMatchObject({emailsSent: 0, emailsFailed: 1});
+      expect(store.emails[1]).toMatchObject({
+        status: 'failed',
+        error: 'SMTP 454 4.7.0 quota',
+        resendOf: originalId,
+      });
+      expect(deps.log).toHaveBeenCalledWith(
+        `Resend of email ${originalId} failed: SMTP 454 4.7.0 quota`,
+      );
+    });
+  });
 });
 
 describe('errorMessage', () => {

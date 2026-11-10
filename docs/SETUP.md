@@ -28,7 +28,10 @@ Notes:
    the Sydney region and a strong database password, and keep that password in
    your password manager.
 2. **SQL Editor** → paste the contents of
-   `supabase/migrations/20261109000000_initial_schema.sql` → **Run**.
+   `supabase/migrations/20261109000000_initial_schema.sql` → **Run**. Then do
+   the same, in order, for `20261110000000_email_sections.sql` and
+   `20261112000000_email_resend.sql` (the Email audit page's **Resend**
+   button needs the last one). The cron migration comes later, in section 6.
 3. **Authentication → Sign In / Providers**: turn **off** "Allow new users to sign up".
 4. **Authentication → Multi-Factor**: make sure **TOTP (App Authenticator)** is enabled.
 5. **Authentication → Users → Add user → Create new user**: enter the admin

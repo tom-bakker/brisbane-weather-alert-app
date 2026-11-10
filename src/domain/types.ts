@@ -143,6 +143,19 @@ export interface EmailAuditEntry {
   event: AlertEventKind;
   status: 'sent' | 'failed';
   error: string | null;
+  /** For a resent copy, the id of the first email it repeats. */
+  resendOf: number | null;
+}
+
+/** An email audit row before the store stamps it. */
+export type NewEmailAudit = Omit<EmailAuditEntry, 'id' | 'sentAt'>;
+
+/** One outgoing message. Recipients go in Bcc so they can't see each other. */
+export interface OutgoingEmail {
+  bcc: string[];
+  subject: string;
+  text: string;
+  html: string;
 }
 
 /** One run of one data feed. */

@@ -3,6 +3,7 @@ import {
   alertToRow,
   observationToRow,
   rowToAlert,
+  rowToEmailAudit,
   rowToEmailSection,
   rowToForecast,
   rowToMailGroup,
@@ -10,6 +11,7 @@ import {
   rowToWarning,
   warningToRow,
   type AlertRow,
+  type EmailAuditRow,
   type EmailSectionRow,
   type ForecastRow,
   type MailGroupRow,
@@ -22,6 +24,7 @@ import type {
   AirportCode,
   AlertRecord,
   BomWarning,
+  EmailAuditEntry,
   FeedLogEntry,
   Forecast,
   MailGroup,
@@ -182,8 +185,26 @@ export class SupabaseStore implements AlertStore {
         event: entry.event,
         status: entry.status,
         error: entry.error,
+        resend_of: entry.resendOf,
       }),
       'record email',
+    );
+  }
+
+  async claimResends(now: Date): Promise<EmailAuditEntry[]> {
+    // One statement claims the requests and returns their emails, so no
+    // request is marked processed without its email in hand. Claiming only
+    // unprocessed rows makes overlapping runs send one copy.
+    const claimed = unwrap(
+      await this.db
+        .from('email_resend_requests')
+        .update({processed_at: now.toISOString()})
+        .is('processed_at', null)
+        .select('email_audit(*)'),
+      'claim resends',
+    ) as {email_audit: EmailAuditRow | null}[];
+    return claimed.flatMap((r) =>
+      r.email_audit === null ? [] : [rowToEmailAudit(r.email_audit)],
     );
   }
 

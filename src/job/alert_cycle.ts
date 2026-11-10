@@ -10,6 +10,7 @@ import {
   type EmailSections,
 } from '../domain/email_sections';
 import {composeEmail, groupsForEvent} from '../domain/notifications';
+import {resendAudit, resendEmail} from '../domain/resend';
 import {HOLD_MINUTES} from '../domain/thresholds';
 import {minutesSince} from '../domain/time';
 import {
@@ -25,7 +26,14 @@ import {
   type MailGroup,
   type Observation,
 } from '../domain/types';
-import type {AlertStore, AwcTaf, Mailer, WeatherFeeds} from './ports';
+import type {
+  AlertStore,
+  AwcTaf,
+  Mailer,
+  NewEmailAudit,
+  OutgoingEmail,
+  WeatherFeeds,
+} from './ports';
 
 /**
  * MET Norway's model updates about hourly and its terms ask clients not to
@@ -98,6 +106,7 @@ class Cycle {
       );
     }
     await this.notify(groups, events);
+    await this.sendResends();
     await store.purgeOld(this.now);
     return {
       events,
@@ -295,10 +304,6 @@ class Cycle {
     }
   }
 
-  /**
-   * Sends one email to one group and writes the audit row either way. An
-   * audit failure is logged and counted, but never stops the other emails.
-   */
   private async sendToGroup(
     event: AlertEvent,
     group: MailGroup,
@@ -306,18 +311,11 @@ class Cycle {
   ) {
     const content = composeEmail(event, sections);
     const recipients = group.members.map((m) => m.email);
-    let error: string | null = null;
-    try {
-      await this.deps.mailer.send({bcc: recipients, ...content});
-      this.sent++;
-    } catch (e) {
-      error = errorMessage(e);
-      this.failed++;
-      this.deps.log(`Email to group "${group.name}" failed: ${error}`);
-    }
     const {alert} = event;
-    try {
-      await this.deps.store.recordEmail({
+    await this.deliver(
+      {bcc: recipients, ...content},
+      `Email to group "${group.name}"`,
+      (error) => ({
         groupId: group.id,
         groupName: group.name,
         recipients,
@@ -330,12 +328,48 @@ class Cycle {
         event: event.kind,
         status: error === null ? 'sent' : 'failed',
         error,
-      });
+        resendOf: null,
+      }),
+    );
+  }
+
+  /** Sends a copy of each email the admin queued from the audit page. */
+  private async sendResends(): Promise<void> {
+    for (const original of await this.deps.store.claimResends(this.now)) {
+      const copy = resendEmail(original);
+      await this.deliver(copy, `Resend of email ${original.id}`, (error) =>
+        resendAudit(original, copy, error),
+      );
+    }
+  }
+
+  /**
+   * Sends one email and writes its audit row either way. A failure is
+   * logged under `label`; an audit failure is logged and counted, but never
+   * stops the other emails.
+   */
+  private async deliver(
+    email: OutgoingEmail,
+    label: string,
+    auditFor: (error: string | null) => NewEmailAudit,
+  ): Promise<void> {
+    let error: string | null = null;
+    try {
+      await this.deps.mailer.send(email);
+      this.sent++;
+    } catch (e) {
+      error = errorMessage(e);
+      this.failed++;
+      this.deps.log(`${label} failed: ${error}`);
+    }
+    const audit = auditFor(error);
+    try {
+      await this.deps.store.recordEmail(audit);
     } catch (e) {
       this.auditFailures++;
       this.deps.log(
-        `Audit write failed for "${content.subject}" to group ` +
-          `"${group.name}": ${errorMessage(e)}`,
+        `Audit write failed for "${email.subject}" to group ` +
+          `"${audit.groupName}": ${errorMessage(e)}`,
       );
     }
   }

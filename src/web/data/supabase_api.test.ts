@@ -10,7 +10,7 @@ interface Call {
 
 type QueryResult = {
   data: unknown;
-  error: {message: string} | null;
+  error: {message: string; code?: string} | null;
   count?: number;
 };
 
@@ -485,5 +485,28 @@ describe('createSupabaseApi data', () => {
     expect(f.calls[0]?.steps[2]).toEqual(['range', [25, 49]]);
     expect(steps(f.calls[0])).toBe('select.order.range');
     expect(steps(f.calls[1])).toBe('select.order.range.eq');
+  });
+
+  it('queues a resend of one audited email', async () => {
+    const f = fakeSupabase();
+    await createSupabaseApi(f.sb).resendEmail(7);
+    expect(f.calls[0]).toEqual({
+      table: 'email_resend_requests',
+      steps: [['insert', [{audit_id: 7}]]],
+    });
+  });
+
+  it('explains a resend that is already queued', async () => {
+    const f = fakeSupabase({
+      email_resend_requests: [
+        {data: null, error: {message: 'duplicate key', code: '23505'}},
+        {data: null, error: {message: 'permission denied'}},
+      ],
+    });
+    const api = createSupabaseApi(f.sb);
+    await expect(api.resendEmail(7)).rejects.toThrow(
+      'A resend of this email is already queued.',
+    );
+    await expect(api.resendEmail(7)).rejects.toThrow('permission denied');
   });
 });
