@@ -76,7 +76,7 @@ Go to **Settings → Secrets and variables → Actions**.
 
 1. **Actions → Deploy to GitHub Pages → Run workflow** (it also runs on every push to `main`).
 2. **Actions → Alert cycle → Run workflow**. Check that the log ends with `Done.`
-   and lists no failed feeds. From then on it runs every 10 minutes.
+   and lists no failed feeds. Once section 6 is set up it runs every 10 minutes.
 3. Open the Pages URL and sign in. On first sign-in you will be asked to scan a
    QR code with an authenticator app (Google Authenticator, Microsoft
    Authenticator, Aegis, 2FAS…). After that, each sign-in needs the password
@@ -85,13 +85,21 @@ Go to **Settings → Secrets and variables → Actions**.
    exposure" with minimum level "Info and above". On a sunny afternoon the
    next cycle sends a UV email, and **Email audit** shows the entry.
 
-## 6. "Refresh now" button (optional)
+## 6. Scheduler and "Refresh now" button
 
-The dashboard's **Refresh now** button starts the Alert cycle workflow straight
-away instead of waiting up to 10 minutes. The browser can't hold a GitHub
-token, so the button calls a Supabase Edge Function
-(`supabase/functions/trigger-alert-cycle`). The function checks that the caller
-is the admin with MFA, then asks GitHub to run the workflow.
+The Alert cycle workflow is started by a Supabase Edge Function
+(`supabase/functions/trigger-alert-cycle`), which asks GitHub to run it. Two
+things call the function:
+
+- a **pg_cron job every 10 minutes** (migration
+  `20261111000000_alert_cycle_cron.sql`), which proves itself with a shared
+  secret. GitHub's own `schedule` trigger is not used because it dropped most
+  runs;
+- the dashboard's **Refresh now** button, for the admin signed in with MFA.
+
+All of this is free: pg_cron, pg_net and Vault come with every Supabase plan,
+~4,400 function calls a month is well inside the free 500,000, and Actions
+minutes are free on a public repository.
 
 1. On GitHub: **Settings → Developer settings → Fine-grained tokens → Generate
    new token**. Repository access: **only** this repository. Permissions:
@@ -100,15 +108,37 @@ is the admin with MFA, then asks GitHub to run the workflow.
    project:
 
    ```bash
-   supabase secrets set GITHUB_DISPATCH_TOKEN=<token> GITHUB_REPO=<owner>/brisbane-weather-alert-app ALLOWED_ORIGIN=https://<owner>.github.io
+   supabase secrets set GITHUB_DISPATCH_TOKEN=<token> GITHUB_REPO=<owner>/brisbane-weather-alert-app ALLOWED_ORIGIN=https://<owner>.github.io CRON_SECRET=<random>
    ```
+
+   For `<random>` use at least 32 random characters, e.g. the output of
+   `openssl rand -hex 32`. Keep it for step 3.
 
    ```bash
-   supabase functions deploy trigger-alert-cycle
+   supabase functions deploy trigger-alert-cycle --no-verify-jwt
    ```
 
-3. Press **Refresh now** on the dashboard. A new run appears under **Actions →
+   `--no-verify-jwt` is needed because the cron call has no user sign-in. The
+   function still refuses any caller that is neither the admin with MFA nor
+   holding `CRON_SECRET`.
+
+3. Apply the migrations (`supabase db push`), then in the Supabase **SQL
+   Editor** store the function URL and the same secret in Vault:
+
+   ```sql
+   select vault.create_secret('https://<ref>.supabase.co/functions/v1/trigger-alert-cycle', 'alert_cycle_function_url');
+   select vault.create_secret('<random from step 2>', 'alert_cycle_cron_secret');
+   ```
+
+4. Check it: within 10 minutes a run started by `workflow_dispatch` appears
+   under **Actions → Alert cycle**. If not, look at the latest rows of
+   `cron.job_run_details` and `net._http_response` (a 403 means the two
+   secrets differ).
+5. Press **Refresh now** on the dashboard. A new run appears under **Actions →
    Alert cycle**, and the dashboard shows the new data about 1–3 minutes later.
+
+To change a Vault value later use `vault.update_secret` with the id from
+`vault.secrets`. To rotate `CRON_SECRET`, set the new value in both places.
 
 `ALLOWED_ORIGIN` is required. It is the origin only (scheme and host, no
 path, no trailing slash). Without it the function refuses every request and
@@ -121,9 +151,9 @@ missing). Everything else keeps working.
 
 ## Keeping it running
 
-- **GitHub disables scheduled workflows after 60 days with no repository
-  activity.** GitHub emails you before it does this. Any commit, or clicking
-  "Enable workflow" on the Actions tab, restarts the schedule.
+- **The GitHub dispatch token expires.** When it does, the cron job and
+  Refresh now both stop starting runs (`net._http_response` shows 502).
+  Generate a new token and run `supabase secrets set GITHUB_DISPATCH_TOKEN=…`.
 - **Supabase pauses free projects after a week of inactivity.** The alert
   cycle writes every 10 minutes, which keeps the project active.
 - A failed email makes the workflow run fail, so GitHub notifies the repo owner.
