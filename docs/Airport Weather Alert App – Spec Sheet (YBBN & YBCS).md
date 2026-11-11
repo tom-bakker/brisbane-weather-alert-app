@@ -2,6 +2,8 @@
 
 Nov 4, 2026 · @Tom
 
+> **Update (Nov 11, 2026):** Gold Coast (YBCG / OOL) has been added as a third airport, and the dashboard's Both view has been removed in favour of one tab per airport. See the README for the current behaviour.
+
 ## Purpose & scope
 
 This app gives ground handlers at Brisbane (YBBN) and Cairns (YBCS) one Power Apps screen showing current and forecast weather, and pushes alerts when conditions threaten ramp operations.
@@ -171,7 +173,7 @@ The screen reads top to bottom: airport tabs and data age, alert banner, current
 
 **Behaviour**
 
-- Tabs switch between YBBN, YBCS and a Both view that shows the two airports side by side
+- Tabs switch between YBBN, YBCS and YBCG, one airport at a time (the original Both view was removed)
 - Each tile border takes the colour and icon of the highest active level for that measure
 - Tapping a tile opens the raw METAR or TAF next to its decoded values
 - Three screens: Dashboard, Alerts (live list plus filterable history), Admin (rules, notify groups, runway data)

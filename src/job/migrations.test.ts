@@ -2,6 +2,7 @@
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
+import {AIRPORTS} from '../domain/airports';
 import {EMAIL_ICONS, EMAIL_PHASES} from '../domain/email_sections';
 import {THRESHOLD_CATEGORIES} from '../domain/thresholds';
 import {ALERT_CATEGORIES} from '../domain/types';
@@ -160,6 +161,27 @@ describe('email_resend migration', () => {
   it('links each resent copy to the email it repeats', () => {
     expect(sql).toMatch(
       /add column resend_of bigint references public\.email_audit \(id\) on delete set null/,
+    );
+  });
+});
+
+describe('gold_coast_airport migration', () => {
+  const sql = readFileSync(
+    join(
+      process.cwd(),
+      'supabase/migrations/20261116000000_gold_coast_airport.sql',
+    ),
+    'utf8',
+  );
+
+  it('defaults new groups to every configured airport', () => {
+    const block = /set default array\[([^\]]*)\]/.exec(sql)?.[1];
+    expect(quoted(block)).toEqual(AIRPORTS.map((a) => a.code));
+  });
+
+  it('adds Gold Coast only to groups that cover every other airport', () => {
+    expect(sql).toMatch(
+      /set airports = array_append\(airports, 'YBCG'\)\s+where airports @> array\['YBBN', 'YBCS'\]\s+and not airports @> array\['YBCG'\];/,
     );
   });
 });

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {AIRPORTS} from '../domain/airports';
+import {AIRPORTS, airportByCode} from '../domain/airports';
 import type {EmailSection} from '../domain/email_sections';
 import type {MetNoResponse} from '../domain/met_no';
 import type {AwcMetar} from '../domain/metar';
@@ -11,6 +11,9 @@ import {MemoryStore} from './memory_store';
 import type {AwcTaf, Mailer, OutgoingEmail, WeatherFeeds} from './ports';
 
 const NOW = new Date('2026-11-09T12:10:00Z');
+
+/** Most cases only need two airports; one case below runs them all. */
+const TWO_AIRPORTS = [airportByCode('YBBN'), airportByCode('YBCS')];
 
 function metar(
   icaoId: AirportCode,
@@ -129,10 +132,38 @@ describe('runAlertCycle', () => {
       feeds,
       store,
       mailer,
-      airports: AIRPORTS,
+      airports: TWO_AIRPORTS,
       now: () => now,
       log: vi.fn(),
     };
+  });
+
+  it('raises a Gold Coast wind alert from its BoM station gust', async () => {
+    deps.airports = AIRPORTS;
+    store.groups = [makeGroup({airports: ['YBCG'], categories: ['wind']})];
+    feeds.metars = [metar('YBBN'), metar('YBCS'), metar('YBCG')];
+    feeds.stationsXml = `<product><observations>
+      <station wmo-id="94592"><period time-utc="2026-11-09T12:00:00Z"><level>
+        <element type="wind_gust_spd">38</element>
+      </level></period></station>
+    </observations></product>`;
+
+    const summary = await runAlertCycle(deps);
+
+    expect(store.observations.map((o) => o.airport)).toEqual([
+      'YBBN',
+      'YBCS',
+      'YBCG',
+    ]);
+    expect(summary.events).toEqual([
+      expect.objectContaining({
+        kind: 'raised',
+        alert: expect.objectContaining({airport: 'YBCG', category: 'wind'}),
+      }),
+    ]);
+    expect(mailer.sent.map((e) => e.subject)).toEqual([
+      expect.stringContaining('Gold Coast (YBCG)'),
+    ]);
   });
 
   it('stores readings and sends nothing on a quiet day', async () => {

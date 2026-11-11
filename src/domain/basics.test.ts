@@ -124,6 +124,11 @@ describe('uvBand', () => {
 describe('config lookups', () => {
   it('finds airports and rejects unknown codes', () => {
     expect(airportByCode('YBCS').name).toBe('Cairns');
+    expect(airportByCode('YBCG')).toMatchObject({
+      name: 'Gold Coast',
+      iata: 'OOL',
+      bomWmoId: '94592',
+    });
     expect(() => airportByCode('XXXX' as AirportCode)).toThrow(
       'Unknown airport',
     );

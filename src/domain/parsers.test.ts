@@ -261,12 +261,40 @@ describe('parseAmocWarnings', () => {
     const xml = amoc(`${STORM_HAZARD}
       <hazard index="2" phase="NEW">
         <headline>Tropical Cyclone Watch for Cairns to Cardwell</headline>
+      </hazard>
+      <hazard index="3" phase="NEW">
+        <headline>Severe Thunderstorm Warning for Coolangatta</headline>
       </hazard>`);
     const warnings = parseAmocWarnings(xml, AIRPORTS, now);
     expect(warnings.map((w) => [w.airport, w.kind, w.level])).toEqual([
       ['YBBN', 'thunderstorm', 'warning'],
       ['YBCS', 'cyclone', 'watch'],
+      ['YBCG', 'thunderstorm', 'warning'],
     ]);
+  });
+
+  it('links an NSW Northern Rivers storm warning to Gold Coast only', () => {
+    const xml = amoc(`
+      <hazard index="1" phase="NEW" type="TSW">
+        <area-list>
+          <area aac="NSW_FA001" description="Northern Rivers" type="forecast-district"/>
+        </area-list>
+        <headline>Severe Thunderstorm Warning for Northern Rivers forecast district</headline>
+      </hazard>`);
+    const warnings = parseAmocWarnings(xml, AIRPORTS, now);
+    expect(warnings.map((w) => w.airport)).toEqual(['YBCG']);
+  });
+
+  it('links a Southeast Coast warning to both Brisbane and Gold Coast', () => {
+    const xml = amoc(`
+      <hazard index="1" phase="NEW" type="TSW">
+        <area-list>
+          <area aac="QLD_FA015" description="Southeast Coast" type="forecast-district"/>
+        </area-list>
+        <headline>Severe Thunderstorm Warning for Southeast Coast forecast district</headline>
+      </hazard>`);
+    const warnings = parseAmocWarnings(xml, AIRPORTS, now);
+    expect(warnings.map((w) => w.airport)).toEqual(['YBBN', 'YBCG']);
   });
 
   it('skips expired, cancelled and irrelevant products', () => {

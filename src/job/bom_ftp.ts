@@ -3,8 +3,12 @@ import {Writable} from 'node:stream';
 
 const HOST = 'ftp.bom.gov.au';
 const DIRECTORY = '/anon/gen/fwo/';
-/** Queensland warning products in BoM's AMOC XML format. */
-const QLD_AMOC = /^IDQ\d+\.amoc\.xml$/;
+/**
+ * Warning products in BoM's AMOC XML format: every Queensland product, plus
+ * NSW severe thunderstorm warnings, because Gold Coast Airport sits on the
+ * border and storms over the Tweed are warned for by the NSW office.
+ */
+const WARNING_FILE = /^(IDQ\d+|IDN21033)\.amoc\.xml$/;
 /** Latest reading from every Queensland weather station. */
 const QLD_OBSERVATIONS = 'IDQ60920.xml';
 
@@ -37,8 +41,13 @@ async function download(client: Client, name: string): Promise<string> {
   return sink.text();
 }
 
+/** Whether a file in BoM's FTP directory is a warning the app reads. */
+export function isWarningFile(name: string): boolean {
+  return WARNING_FILE.test(name);
+}
+
 /**
- * Downloads every current Queensland warning from the BoM anonymous FTP
+ * Downloads every current Queensland warning (and NSW thunderstorm warning) from the BoM anonymous FTP
  * service. BoM blocks automated HTTP access to its website and points
  * automated users to this channel instead.
  */
@@ -46,7 +55,7 @@ export function fetchBomAmocDocuments(): Promise<string[]> {
   return withClient(async (client) => {
     const files = await client.list(DIRECTORY);
     const documents: string[] = [];
-    for (const file of files.filter((f) => QLD_AMOC.test(f.name))) {
+    for (const file of files.filter((f) => isWarningFile(f.name))) {
       documents.push(await download(client, file.name));
     }
     return documents;

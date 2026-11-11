@@ -44,7 +44,7 @@ export function AuthFrame({
         Airport Weather Alerts
       </h1>
       <p className="text-muted mb-4 text-sm">
-        Brisbane (YBBN) and Cairns (YBCS)
+        Brisbane (YBBN), Cairns (YBCS) and Gold Coast (YBCG)
       </p>
       <Card>
         <h2 className="mb-4 text-lg font-semibold">{title}</h2>

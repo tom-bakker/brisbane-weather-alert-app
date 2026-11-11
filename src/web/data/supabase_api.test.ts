@@ -400,6 +400,7 @@ describe('createSupabaseApi data', () => {
     ).toEqual([
       ['YBBN', 4, null, 1],
       ['YBCS', null, 'TAF', 0],
+      ['YBCG', null, null, 0],
     ]);
     expect(data.feeds).toHaveLength(1);
     expect(steps(f.calls.find((c) => c.table === 'warnings'))).toBe(

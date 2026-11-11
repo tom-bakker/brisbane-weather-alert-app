@@ -37,6 +37,11 @@ const QLD_XML = `<?xml version="1.0"?>
       '2026-11-11T04:00:00+00:00',
       '<element units="knots" type="wind_spd">13</element>',
     )}
+    ${station(
+      '94592',
+      '2026-11-11T04:00:00+00:00',
+      '<element units="knots" type="wind_gust_spd">31</element>',
+    )}
   </observations>
 </product>`;
 
@@ -47,6 +52,7 @@ describe('parseBomObservations', () => {
     expect(parseBomObservations(QLD_XML, AIRPORTS)).toEqual([
       {airport: 'YBBN', observedAt: '2026-11-11T04:00:00.000Z', gustKt: 25},
       {airport: 'YBCS', observedAt: '2026-11-11T04:00:00.000Z', gustKt: null},
+      {airport: 'YBCG', observedAt: '2026-11-11T04:00:00.000Z', gustKt: 31},
     ]);
   });
 

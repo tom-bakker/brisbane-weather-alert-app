@@ -4,7 +4,7 @@ name: Alert cycle
 
 on:
   # Started every 10 minutes by a Supabase pg_cron job (through the
-  # trigger-alert-cycle Edge Function), and by the dashboard's "Refresh now".
+  # trigger-alert-cycle Edge Function), and on demand from the app.
   # GitHub's own `schedule` trigger is not used: it dropped most runs.
   # See supabase/migrations/20261111000000_alert_cycle_cron.sql.
   workflow_dispatch:

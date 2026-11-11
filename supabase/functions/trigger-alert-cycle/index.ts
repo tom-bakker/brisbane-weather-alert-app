@@ -1,6 +1,6 @@
 // Supabase Edge Function (Deno): starts the "Alert cycle" GitHub workflow.
 // Two callers are allowed:
-//   * the dashboard's "Refresh now" button: the caller's JWT must pass
+//   * the app (e.g. the email audit's resend): the caller's JWT must pass
 //     public.has_app_access() (any app user signed in with MFA), the same
 //     check row-level security uses;
 //   * the pg_cron job every 10 minutes (migration 20261111000000): it sends

@@ -1,7 +1,7 @@
 /** Shared domain types for the weather alert system. */
 
 /** ICAO code of a configured airport. */
-export type AirportCode = 'YBBN' | 'YBCS';
+export type AirportCode = 'YBBN' | 'YBCS' | 'YBCG';
 
 /** Severity levels, lowest first. Order matters: see levels.ts. */
 export const ALERT_LEVELS = ['info', 'watch', 'warning', 'standdown'] as const;

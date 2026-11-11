@@ -1,7 +1,7 @@
-# Airport Weather Alert App (YBBN and YBCS)
+# Airport Weather Alert App (YBBN, YBCS and YBCG)
 
 A web dashboard and email alert service for ground handlers at Brisbane
-(YBBN) and Cairns (YBCS). It is the open-source, zero-cost version of the
+(YBBN), Cairns (YBCS) and Gold Coast (YBCG). It is the open-source, zero-cost version of the
 design in [the spec sheet](docs/Airport%20Weather%20Alert%20App%20–%20Spec%20Sheet%20(YBBN%20&%20YBCS).md).
 It replaces Power Apps and SharePoint with React, Supabase and GitHub.
 
@@ -19,7 +19,7 @@ It replaces Power Apps and SharePoint with React, Supabase and GitHub.
 | Alert toggles | Each group has switches for wind, thunderstorm, low visibility, heat, UV, tropical cyclone and stale data. It also has per-airport switches and a minimum level (Info, Watch, Warning or Stand-down). |
 | Gmail alerts | Emails go out through Gmail SMTP (`smtp.gmail.com:465`) with an app password, Bcc to group members. An alert sends an email when it is raised or escalated, and again for the all-clear. |
 | Email audit | Every send (or failed send) is logged with time, group, recipients, subject, body and error. The log is read-only in the app and kept for 12 months. |
-| Live dashboard | Shows Brisbane, Cairns or both side by side. It has an alert banner, wind, visibility and cloud, temperature and QNH, UV with sun-protection band, BoM warnings, radar link, a 12-hour forecast, raw METAR and TAF, and feed health. It refreshes every 60 s and shows a stale-data banner. |
+| Live dashboard | Shows Brisbane, Cairns or Gold Coast, one tab per airport. It has an alert banner, wind, visibility and cloud, temperature and QNH, UV with sun-protection band, BoM warnings, radar link, a 12-hour forecast, raw METAR and TAF, and feed health. It refreshes every 60 s and shows a stale-data banner. |
 | Alert history | Lists alerts, newest first, with peak level and clear time for post-event review. |
 
 ## Architecture
@@ -61,8 +61,8 @@ flowchart LR
 | --- | --- | --- |
 | Official METAR and TAF | [aviationweather.gov Data API](https://aviationweather.gov/data/api/) (no key) | US Government public data; 100 requests/min limit |
 | Hourly forecast, clear-sky UV | [MET Norway Locationforecast](https://api.met.no/) (no key) | CC BY 4.0, attribution shown in the footer; commercial use allowed |
-| Thunderstorm and cyclone warnings | BoM anonymous FTP (`ftp.bom.gov.au/anon/gen/fwo/IDQ*.amoc.xml`) | [BoM copyright terms](https://www.bom.gov.au/other/copyright.shtml); check the commercial-use question raised in the spec before go-live |
-| Wind gusts (every gust, which METARs omit unless 10 kt above the mean wind) | BoM anonymous FTP (`ftp.bom.gov.au/anon/gen/fwo/IDQ60920.xml`, Brisbane 94578 and Cairns 94287 stations) | [BoM copyright terms](https://www.bom.gov.au/other/copyright.shtml); same terms as the warnings |
+| Thunderstorm and cyclone warnings | BoM anonymous FTP (`ftp.bom.gov.au/anon/gen/fwo/IDQ*.amoc.xml`, plus NSW thunderstorm warnings `IDN21033.amoc.xml` for the Gold Coast) | [BoM copyright terms](https://www.bom.gov.au/other/copyright.shtml); check the commercial-use question raised in the spec before go-live |
+| Wind gusts (every gust, which METARs omit unless 10 kt above the mean wind) | BoM anonymous FTP (`ftp.bom.gov.au/anon/gen/fwo/IDQ60920.xml`, Brisbane 94578, Cairns 94287 and Coolangatta 94592 stations) | [BoM copyright terms](https://www.bom.gov.au/other/copyright.shtml); same terms as the warnings |
 
 Compared with the spec, this build gets **official METAR and TAF at no cost**:
 the spec's paid upgrade was only needed for Power Automate's premium HTTP
