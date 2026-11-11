@@ -51,12 +51,28 @@ const STORM_XML = `<amoc><identifier>IDQ21033</identifier>
   <hazard index="1"><headline>Severe Thunderstorm Warning for Brisbane</headline></hazard>
 </amoc>`;
 
+/**
+ * BoM's Queensland station readings: Brisbane's gust in knots at `time`
+ * and a light 5 kt gust at Cairns. '' leaves Brisbane's gust out.
+ */
+function stationsXml(gustKt: number | '', time = '2026-11-09T12:00:00Z') {
+  const station = (wmo: string, gust: number | '', at: string) =>
+    `<station wmo-id="${wmo}"><period time-utc="${at}"><level>
+      <element type="wind_gust_spd">${gust}</element>
+    </level></period></station>`;
+  return `<product><observations>
+    ${station('94578', gustKt, time)}
+    ${station('94287', 5, '2026-11-09T12:00:00Z')}
+  </observations></product>`;
+}
+
 class FakeFeeds implements WeatherFeeds {
   metars: AwcMetar[] = [metar('YBBN'), metar('YBCS')];
   tafs: AwcTaf[] = [
     {icaoId: 'YBBN', rawTAF: 'TAF YBBN ...', issueTime: '2026-11-09T11:00:00Z'},
   ];
   bomDocs: string[] = [];
+  stationsXml = stationsXml(5);
   metNo: MetNoResponse = MET_NO;
   metNoCalls = 0;
   failing = new Set<string>();
@@ -80,6 +96,10 @@ class FakeFeeds implements WeatherFeeds {
   async fetchBomWarningDocuments() {
     this.maybeFail('bom');
     return this.bomDocs;
+  }
+  async fetchBomObservationDocument() {
+    this.maybeFail('bom-obs');
+    return this.stationsXml;
   }
 }
 
@@ -141,6 +161,7 @@ describe('runAlertCycle', () => {
     expect(store.feeds.map((f) => [f.source, f.ok, f.records])).toEqual([
       ['aviationweather-metar', true, 2],
       ['aviationweather-taf', true, 1],
+      ['bom-observations', true, 2],
       ['bom-warnings', true, 0],
       ['met-no-YBBN', true, 1],
       ['met-no-YBCS', true, 1],
@@ -172,6 +193,84 @@ describe('runAlertCycle', () => {
       error: null,
     });
     expect(store.emails[0]?.body).not.toContain('://');
+  });
+
+  // 2026-11-11 14:00 AEST: METAR 03019KT (no gust group), BoM gust 25 kt.
+  it('raises a wind alert from a BoM gust the METAR left out', async () => {
+    feeds.metars = [metar('YBBN', {wspd: 19}), metar('YBCS')];
+    feeds.stationsXml = stationsXml(25);
+
+    const summary = await runAlertCycle(deps);
+
+    expect(store.observations[0]).toMatchObject({
+      windKt: 19,
+      gustKt: 25,
+      gustObservedAt: '2026-11-09T12:00:00.000Z',
+    });
+    expect(summary.events.map((e) => e.alert)).toMatchObject([
+      {
+        airport: 'YBBN',
+        category: 'wind',
+        level: 'watch',
+        triggerValue: '25 kt',
+      },
+    ]);
+    expect(mailer.sent).toHaveLength(1);
+  });
+
+  it('ignores a BoM gust that is too old', async () => {
+    feeds.metars = [metar('YBBN', {wspd: 19}), metar('YBCS')];
+    feeds.stationsXml = stationsXml(25, '2026-11-09T11:30:00Z');
+
+    const summary = await runAlertCycle(deps);
+
+    expect(store.observations[0]?.gustKt).toBeNull();
+    expect(summary.events).toEqual([]);
+  });
+
+  it('records unreadable BoM observations as a failed feed', async () => {
+    const parse = await import('../domain/bom_observations');
+    const spy = vi
+      .spyOn(parse, 'parseBomObservations')
+      .mockImplementation(() => {
+        throw new Error('bad xml');
+      });
+
+    const summary = await runAlertCycle(deps);
+
+    expect(deps.log).toHaveBeenCalledWith(
+      'Feed bom-observations failed: bad xml',
+    );
+    expect(summary.failedFeeds).toEqual(['bom-observations']);
+    spy.mockRestore();
+  });
+
+  it('reports an airport the BoM file has no gust for', async () => {
+    feeds.stationsXml = stationsXml('');
+
+    const summary = await runAlertCycle(deps);
+
+    expect(deps.log).toHaveBeenCalledWith(
+      'BoM observations have no gust for YBBN; using METAR gusts only.',
+    );
+    expect(summary.failedFeeds).toEqual(['bom-observations-YBBN']);
+    expect(store.feeds.find((f) => f.source === 'bom-observations')).toEqual(
+      expect.objectContaining({ok: true, records: 1}),
+    );
+  });
+
+  it('uses a fresh BoM gust when the METAR is missing, without saving it', async () => {
+    await runAlertCycle(deps);
+    now = new Date(NOW.getTime() + 20 * 60_000);
+    feeds.failing = new Set(['metar']);
+    feeds.stationsXml = stationsXml(36, '2026-11-09T12:30:00Z');
+
+    const summary = await runAlertCycle(deps);
+
+    expect(summary.events.map((e) => e.alert)).toMatchObject([
+      {airport: 'YBBN', category: 'wind', level: 'warning'},
+    ]);
+    expect(store.observations.map((o) => o.gustKt)).toEqual([5, 5]);
   });
 
   it('does not repeat an unchanged alert, then escalates, then clears after the hold', async () => {
@@ -249,7 +348,7 @@ describe('runAlertCycle', () => {
   it('falls back to stored data when feeds fail', async () => {
     await runAlertCycle(deps);
     now = new Date(NOW.getTime() + 31 * 60_000);
-    feeds.failing = new Set(['metar', 'taf', 'metno', 'bom']);
+    feeds.failing = new Set(['metar', 'taf', 'metno', 'bom', 'bom-obs']);
     store.warnings = [
       {
         id: 'w',
@@ -267,6 +366,7 @@ describe('runAlertCycle', () => {
     expect(summary.failedFeeds).toEqual([
       'aviationweather-metar',
       'aviationweather-taf',
+      'bom-observations',
       'bom-warnings',
       'met-no-YBBN',
       'met-no-YBCS',

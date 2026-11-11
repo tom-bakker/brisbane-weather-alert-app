@@ -3,7 +3,12 @@ import {describe, expect, it} from 'vitest';
 import {airportByCode} from './airports';
 import {categoryDescription, categoryLabel} from './categories';
 import {highestLevel, isAtLeast, levelLabel, levelRank} from './levels';
-import {DEFAULT_THRESHOLDS, levelFor} from './thresholds';
+import {
+  bandsFor,
+  DEFAULT_THRESHOLDS,
+  levelFor,
+  THRESHOLD_CATEGORIES,
+} from './thresholds';
 import {
   formatAestTime,
   formatAge,
@@ -49,12 +54,23 @@ describe('thresholds', () => {
   });
 
   it.each([
-    [5000, null],
-    [4999, 'watch'],
-    [800, 'watch'],
-    [799, 'warning'],
+    [5001, null],
+    [5000, 'watch'],
+    [801, 'watch'],
+    [800, 'warning'],
   ])('visibility %i m is %s', (m, level) => {
     expect(levelFor('visibility', m, DEFAULT_THRESHOLDS)).toBe(level);
+  });
+
+  // A reading that equals a limit raises that level, in every category.
+  it.each(
+    THRESHOLD_CATEGORIES.flatMap((category) =>
+      bandsFor(DEFAULT_THRESHOLDS[category]).map(
+        (band) => [category, band.limit, band.level] as const,
+      ),
+    ),
+  )('%s exactly at %s is %s', (category, limit, level) => {
+    expect(levelFor(category, limit, DEFAULT_THRESHOLDS)).toBe(level);
   });
 });
 
@@ -127,7 +143,7 @@ describe('config lookups', () => {
       visibility: {info: 8000, watch: 3000, warning: null, standdown: 500},
     };
     expect(categoryDescription('visibility', thresholds)).toBe(
-      'Visibility below 8,000 m (Info), 3,000 m (Watch), 500 m (Stand-down)',
+      'Visibility of 8,000 m or less (Info), 3,000 m (Watch), 500 m (Stand-down)',
     );
     expect(categoryDescription('wind', thresholds)).toBe(
       'Wind or gust of 25 kt or more (Watch), 35 kt (Warning), 45 kt (Stand-down)',

@@ -59,14 +59,17 @@ export function parseMetar(
   const windKt = metar.wspd ?? 0;
   const tempC = numberOrNull(metar.temp);
   const dewpointC = numberOrNull(metar.dewp);
+  const observedAt = new Date(metar.obsTime * 1000).toISOString();
+  const gustKt = numberOrNull(metar.wgst);
   return {
     airport,
-    observedAt: new Date(metar.obsTime * 1000).toISOString(),
+    observedAt,
     rawMetar: metar.rawOb,
     windDirDeg:
       typeof metar.wdir === 'number' && windKt > 0 ? metar.wdir : null,
     windKt,
-    gustKt: numberOrNull(metar.wgst),
+    gustKt,
+    gustObservedAt: gustKt === null ? null : observedAt,
     visibilityM:
       visibilityFromRaw(metar.rawOb) ?? visibilityFromMiles(metar.visib),
     weatherCodes: metar.wxString ?? '',

@@ -12,13 +12,14 @@ const TIMEOUT_MS = 20_000;
 export interface HttpFeedOptions {
   userAgent: string;
   fetchBomDocuments: () => Promise<string[]>;
+  fetchBomObservations: () => Promise<string>;
   fetchFn?: typeof fetch;
 }
 
 /**
  * Weather feeds over HTTPS: official METAR/TAF from aviationweather.gov (US
  * public domain) and model data from MET Norway (CC BY 4.0). BoM warnings
- * come over anonymous FTP, which is passed in.
+ * and station observations come over anonymous FTP, which is passed in.
  */
 export function createHttpFeeds(options: HttpFeedOptions): WeatherFeeds {
   const fetchFn = options.fetchFn ?? fetch;
@@ -46,5 +47,6 @@ export function createHttpFeeds(options: HttpFeedOptions): WeatherFeeds {
         `${MET_NO_BASE}?lat=${airport.lat.toFixed(4)}&lon=${airport.lon.toFixed(4)}`,
       ),
     fetchBomWarningDocuments: options.fetchBomDocuments,
+    fetchBomObservationDocument: options.fetchBomObservations,
   };
 }

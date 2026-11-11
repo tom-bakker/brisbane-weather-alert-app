@@ -5,7 +5,7 @@ import {makeAlert, makeObservation} from '../../domain/test_fixtures';
 import type {AirportSnapshot} from '../data/api';
 import {FakeApi, renderWithApi} from '../test_api';
 import {DashboardPage, REFRESH_COOLDOWN_MS} from './dashboard_page';
-import {formatVisibility, formatWind, withUnit} from './format';
+import {formatGust, formatVisibility, formatWind, withUnit} from './format';
 
 const NOW = new Date('2026-11-09T12:10:00Z');
 const clock = () => NOW;
@@ -286,5 +286,22 @@ describe('dashboard formatting', () => {
     expect(formatWind(5, 12)).toBe('005° 12 kt');
     expect(formatWind(null, 3)).toBe('Variable 3 kt');
     expect(formatWind(null, 0)).toBe('Calm');
+  });
+
+  it('shows when a gust came after the METAR', () => {
+    const at = '2026-11-11T04:00:00.000Z';
+    expect(
+      formatGust({observedAt: at, gustKt: null, gustObservedAt: null}),
+    ).toBe('—');
+    expect(formatGust({observedAt: at, gustKt: 38, gustObservedAt: at})).toBe(
+      '38 kt',
+    );
+    expect(
+      formatGust({
+        observedAt: at,
+        gustKt: 25,
+        gustObservedAt: '2026-11-11T04:20:00.000Z',
+      }),
+    ).toBe('25 kt at 14:20 AEST');
   });
 });

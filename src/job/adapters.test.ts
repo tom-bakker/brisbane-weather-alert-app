@@ -67,6 +67,7 @@ describe('createHttpFeeds', () => {
     const feeds = createHttpFeeds({
       userAgent: 'ua/1',
       fetchBomDocuments: bom,
+      fetchBomObservations: async () => '<product/>',
       fetchFn,
     });
 
@@ -82,6 +83,7 @@ describe('createHttpFeeds', () => {
     const init = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
     expect(init[1].headers).toMatchObject({'User-Agent': 'ua/1'});
     expect(await feeds.fetchBomWarningDocuments()).toEqual(['<amoc/>']);
+    expect(await feeds.fetchBomObservationDocument()).toBe('<product/>');
   });
 
   it('throws on an HTTP error status', async () => {
@@ -91,6 +93,7 @@ describe('createHttpFeeds', () => {
     const feeds = createHttpFeeds({
       userAgent: 'ua',
       fetchBomDocuments: async () => [],
+      fetchBomObservations: async () => '',
       fetchFn,
     });
     await expect(feeds.fetchMetars(['YBBN'])).rejects.toThrow(

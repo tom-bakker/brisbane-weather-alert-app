@@ -1,7 +1,7 @@
 import {levelLabel} from './levels';
 import {ALERT_LEVELS, type AlertLevel} from './types';
 
-/** A level that applies once a value passes `limit`. */
+/** A level that applies once a value reaches `limit`. */
 export interface Band {
   limit: number;
   level: AlertLevel;
@@ -28,7 +28,10 @@ export interface CategoryThresholds {
 
 /** How a category's reading is compared with its limits. */
 export interface Measure {
-  /** "above": alert at or above a limit (>=); "below": under it (<). */
+  /**
+   * "above": alert at or above a limit (>=); "below": at or under it (<=).
+   * A reading that equals a limit always raises that level.
+   */
   direction: 'above' | 'below';
   /** What is measured, e.g. "Wind or gust". */
   reading: string;
@@ -53,7 +56,9 @@ export const MEASURES: Record<ThresholdCategory, Measure> = {
     reading: 'Visibility',
     unit: 'm',
     min: 1,
-    max: 10000,
+    // Clear sky (CAVOK or 9999) is stored as 10,000 m, so a limit there
+    // would alert on every clear day.
+    max: 9999,
   },
   heat: {
     direction: 'above',
@@ -109,7 +114,7 @@ export function levelFor(
   const bands = bandsFor(thresholds[category]);
   return MEASURES[category].direction === 'above'
     ? levelAtOrAbove(value, bands)
-    : levelBelow(value, bands);
+    : levelAtOrBelow(value, bands);
 }
 
 /** Level of the last band whose limit `value` reaches (>=). */
@@ -120,12 +125,12 @@ export function levelAtOrAbove(
   return lastMatch(bands, (band) => value >= band.limit);
 }
 
-/** Level of the last band whose limit `value` is under (<). */
-export function levelBelow(
+/** Level of the last band whose limit `value` is at or under (<=). */
+export function levelAtOrBelow(
   value: number,
   bands: readonly Band[],
 ): AlertLevel | null {
-  return lastMatch(bands, (band) => value < band.limit);
+  return lastMatch(bands, (band) => value <= band.limit);
 }
 
 function lastMatch(
@@ -220,8 +225,8 @@ export function describeThresholds(
   const {direction, reading} = MEASURES[category];
   const above = direction === 'above';
   const parts = bandsFor(limits).map((band, i) => {
-    const more = above && i === 0 ? ' or more' : '';
-    return `${formatLimit(category, band.limit)}${more} (${levelLabel(band.level)})`;
+    const orBeyond = i === 0 ? (above ? ' or more' : ' or less') : '';
+    return `${formatLimit(category, band.limit)}${orBeyond} (${levelLabel(band.level)})`;
   });
-  return `${reading} ${above ? 'of' : 'below'} ${parts.join(', ')}`;
+  return `${reading} of ${parts.join(', ')}`;
 }

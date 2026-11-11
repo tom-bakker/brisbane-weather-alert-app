@@ -1,5 +1,10 @@
 import type {AirportConfig} from '../domain/airports';
 import {planAlertChange} from '../domain/alert_state';
+import {
+  parseBomObservations,
+  withBomGust,
+  type BomStationReading,
+} from '../domain/bom_observations';
 import {parseAmocWarnings} from '../domain/bom_warnings';
 import {evaluateConditions, unknownCategories} from '../domain/evaluate';
 import {forecastHours, uvIndexAt, type MetNoResponse} from '../domain/met_no';
@@ -74,6 +79,8 @@ export function errorMessage(error: unknown): string {
 /** What this run read that every airport's assessment shares. */
 interface AssessmentInputs {
   metars: AwcMetar[] | null;
+  /** Latest BoM station readings, which carry gusts METARs leave out. */
+  stations: readonly BomStationReading[];
   tafs: AwcTaf[] | null;
   warnings: readonly BomWarning[];
   thresholds: Thresholds;
@@ -84,6 +91,14 @@ interface Assessment {
   conditions: Condition[];
   /** Categories whose input is missing: their alerts are held as they are. */
   unknown: AlertCategory[];
+}
+
+/** How many records a feed returned; a single document counts as one. */
+function recordCount(value: unknown[] | string | MetNoResponse): number {
+  if (typeof value === 'string') return 1;
+  return Array.isArray(value)
+    ? value.length
+    : value.properties.timeseries.length;
 }
 
 class Cycle {
@@ -111,6 +126,7 @@ class Cycle {
     const tafs = await this.readFeed('aviationweather-taf', () =>
       feeds.fetchTafs(codes),
     );
+    const stations = await this.loadStations();
     const warnings = await this.loadWarnings();
     const active = await store.activeAlerts();
 
@@ -118,6 +134,7 @@ class Cycle {
     for (const airport of airports) {
       const assessment = await this.assess(airport, {
         metars,
+        stations,
         tafs,
         warnings,
         thresholds,
@@ -139,15 +156,14 @@ class Cycle {
   }
 
   /** Runs one feed call and records its health in the feed log. */
-  private async readFeed<T extends {length: number} | MetNoResponse>(
+  private async readFeed<T extends unknown[] | string | MetNoResponse>(
     source: string,
     fetch: () => Promise<T>,
   ): Promise<T | null> {
     const runAt = this.deps.now().toISOString();
     try {
       const value = await fetch();
-      const records =
-        'length' in value ? value.length : value.properties.timeseries.length;
+      const records = recordCount(value);
       await this.deps.store.recordFeed({
         source,
         runAt,
@@ -169,6 +185,29 @@ class Cycle {
       });
       return null;
     }
+  }
+
+  /**
+   * BoM station readings with a gust; none when the feed fails. The feed
+   * log counts the airports that got a gust, and any airport without one
+   * is reported as a failed feed, so losing this source is never silent.
+   */
+  private async loadStations(): Promise<BomStationReading[]> {
+    const readings = await this.readFeed('bom-observations', async () => {
+      const xml = await this.deps.feeds.fetchBomObservationDocument();
+      return parseBomObservations(xml, this.deps.airports).filter(
+        (r) => r.gustKt !== null,
+      );
+    });
+    if (readings === null) return [];
+    for (const {code} of this.deps.airports) {
+      if (readings.some((r) => r.airport === code)) continue;
+      this.deps.log(
+        `BoM observations have no gust for ${code}; using METAR gusts only.`,
+      );
+      this.failedFeeds.push(`bom-observations-${code}`);
+    }
+    return readings;
   }
 
   private async loadWarnings(): Promise<BomWarning[]> {
@@ -224,13 +263,14 @@ class Cycle {
     airport: AirportConfig,
     inputs: AssessmentInputs,
   ): Promise<Assessment> {
-    const {metars, tafs, warnings, thresholds} = inputs;
+    const {metars, stations, tafs, warnings, thresholds} = inputs;
     const stored = await this.deps.store.forecast(airport.code);
     const fresh = await this.fetchHoursIfDue(airport, stored);
     const hours = fresh ?? stored?.hours ?? [];
     const observation = await this.observationFor(
       airport.code,
       metars,
+      stations.find((s) => s.airport === airport.code),
       uvIndexAt(hours, this.now),
     );
     await this.saveForecast(airport.code, tafs, fresh);
@@ -266,11 +306,20 @@ class Cycle {
   private async observationFor(
     code: AirportCode,
     metars: AwcMetar[] | null,
+    station: BomStationReading | undefined,
     uv: number | null,
   ): Promise<Observation | null> {
     const metar = metars?.find((m) => m.icaoId === code);
-    if (metar === undefined) return this.deps.store.latestObservation(code);
-    const observation = parseMetar(metar, code, uv);
+    if (metar === undefined) {
+      // Not saved: the stored row is the METAR's, and this gust is newer.
+      const stored = await this.deps.store.latestObservation(code);
+      return stored === null ? null : withBomGust(stored, station, this.now);
+    }
+    const observation = withBomGust(
+      parseMetar(metar, code, uv),
+      station,
+      this.now,
+    );
     await this.deps.store.saveObservation(observation);
     return observation;
   }

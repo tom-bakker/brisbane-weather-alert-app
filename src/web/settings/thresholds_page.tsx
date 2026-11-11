@@ -223,8 +223,8 @@ function ThresholdCard({
               {categoryLabel(category)}
             </h2>
             <p className="text-muted text-sm">
-              {reading} {direction === 'above' ? 'at or above' : 'below'} each
-              limit raises that level. Leave a level empty to skip it.
+              {reading} {direction === 'above' ? 'at or above' : 'at or below'}{' '}
+              each limit raises that level. Leave a level empty to skip it.
             </p>
           </div>
         </div>

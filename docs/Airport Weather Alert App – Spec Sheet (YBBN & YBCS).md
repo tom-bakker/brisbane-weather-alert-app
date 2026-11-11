@@ -81,7 +81,7 @@ Alerts fire from a rule list in SharePoint, so thresholds can be changed by an a
 | Thunderstorm warning | BoM severe thunderstorm warning naming Brisbane or Cairns areas, or MSN weather code contains TS | Warning | BoM RSS, MSN Weather |
 | Wind gust | Gust 25 kt or more; 35 kt or more; 45 kt or more | Watch; Warning; Stand-down | MSN Weather |
 | Door and equipment wind limit | Current wind or gust exceeds the lowest door or equipment limit of aircraft types on the ground (see table below) | Warning | MSN Weather + AircraftLimit list |
-| Visibility | Below 5,000 m; below 800 m | Watch; Warning | MSN Weather |
+| Visibility | 5,000 m or less; 800 m or less | Watch; Warning | MSN Weather |
 | Heat | Apparent temperature 35 C or more; 38 C or more | Watch; Warning | MSN Weather |
 | UV exposure | UV index 3 or more: full sun protection (shirt, SPF50+ sunscreen, hat, shade, sunglasses); 8 or more (very high); 11 or more (extreme). Bands follow ARPANSA and Cancer Council guidance | Info; Watch; Warning | MSN Weather (UV Index) |
 | Tropical cyclone | Any BoM cyclone advice or warning for the Queensland coast near the airport | Watch; Warning | BoM RSS |

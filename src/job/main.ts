@@ -8,7 +8,7 @@ import {createClient} from '@supabase/supabase-js';
 import {AIRPORTS} from '../domain/airports';
 import {levelLabel} from '../domain/levels';
 import {runAlertCycle, type AlertCycleDeps} from './alert_cycle';
-import {fetchBomAmocDocuments} from './bom_ftp';
+import {fetchBomAmocDocuments, fetchBomObservationDocument} from './bom_ftp';
 import {readJobConfig, userAgentFor} from './config';
 import {createGmailMailer} from './gmail_mailer';
 import {createHttpFeeds} from './http_feeds';
@@ -30,6 +30,7 @@ function dryRunDeps(): AlertCycleDeps {
     feeds: createHttpFeeds({
       userAgent: userAgentFor(process.env),
       fetchBomDocuments: fetchBomAmocDocuments,
+      fetchBomObservations: fetchBomObservationDocument,
     }),
     store: new MemoryStore(),
     mailer: printOnly,
@@ -48,6 +49,7 @@ function liveDeps(): AlertCycleDeps {
     feeds: createHttpFeeds({
       userAgent: config.userAgent,
       fetchBomDocuments: fetchBomAmocDocuments,
+      fetchBomObservations: fetchBomObservationDocument,
     }),
     store: new SupabaseStore(db),
     mailer: createGmailMailer({

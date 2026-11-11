@@ -29,6 +29,11 @@ export interface Observation {
   windDirDeg: number | null;
   windKt: number;
   gustKt: number | null;
+  /**
+   * When the gust was measured (ISO 8601 UTC): the METAR's time, or the BoM
+   * station's when its gust was used. Null when there is no gust.
+   */
+  gustObservedAt: string | null;
   visibilityM: number | null;
   /** Present weather codes such as "-SHRA" or "TSRA". */
   weatherCodes: string;

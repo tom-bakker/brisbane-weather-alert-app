@@ -78,9 +78,10 @@ describe('thresholds', () => {
     expect(
       thresholdsProblem('visibility', limits({watch: 5000, warning: 800})),
     ).toBeNull();
-    expect(thresholdsProblem('visibility', limits({watch: 10001}))).toBe(
-      'Watch must be between 1 m and 10,000 m.',
+    expect(thresholdsProblem('visibility', limits({watch: 10000}))).toBe(
+      'Watch must be between 1 m and 9,999 m.',
     );
+    expect(thresholdsProblem('visibility', limits({watch: 9999}))).toBeNull();
   });
 
   it('accepts the range limits exactly', () => {
@@ -116,7 +117,7 @@ describe('thresholds', () => {
       'Apparent temperature of 35 C or more (Watch), 38 C (Warning)',
     );
     expect(describeThresholds('visibility', limits({warning: 800}))).toBe(
-      'Visibility below 800 m (Warning)',
+      'Visibility of 800 m or less (Warning)',
     );
   });
 });
@@ -130,6 +131,7 @@ describe('evaluateConditions with edited thresholds', () => {
     windDirDeg: 80,
     windKt: 22,
     gustKt: null,
+    gustObservedAt: null,
     visibilityM: 9999,
     weatherCodes: '',
     cloud: '',
@@ -143,7 +145,7 @@ describe('evaluateConditions with edited thresholds', () => {
   it('raises each alert at the limits given', () => {
     const thresholds = {
       wind: limits({info: 20}),
-      visibility: limits({watch: 10000}),
+      visibility: limits({watch: 9999}),
       heat: limits({watch: 33}),
       uv: limits({info: 1}),
     };

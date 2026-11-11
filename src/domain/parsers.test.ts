@@ -42,6 +42,7 @@ describe('parseMetar', () => {
       windDirDeg: 80,
       windKt: 4,
       gustKt: null,
+      gustObservedAt: null,
       visibilityM: 10000,
       weatherCodes: '-SHRA',
       cloud: 'OVC029',
@@ -107,6 +108,7 @@ describe('parseMetar', () => {
   it('keeps a reported gust and only one of temp/dew point', () => {
     const obs = parseMetar({...YBBN_METAR, wgst: 32, dewp: null}, 'YBBN', null);
     expect(obs.gustKt).toBe(32);
+    expect(obs.gustObservedAt).toBe('2026-11-09T12:00:00.000Z');
     expect(obs.apparentTempC).toBeNull();
   });
 });
