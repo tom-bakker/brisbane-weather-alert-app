@@ -4,7 +4,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 import {makeAlert, makeObservation} from '../../domain/test_fixtures';
 import type {AirportSnapshot} from '../data/api';
 import {FakeApi, renderWithApi} from '../test_api';
-import {DashboardPage, REFRESH_COOLDOWN_MS} from './dashboard_page';
+import {DashboardPage} from './dashboard_page';
 import {formatGust, formatVisibility, formatWind, withUnit} from './format';
 
 const NOW = new Date('2026-11-09T12:10:00Z');
@@ -100,7 +100,7 @@ describe('DashboardPage', () => {
     expect(screen.queryByText(/Weather data is stale/)).not.toBeInTheDocument();
   });
 
-  it('switches airports and shows both side by side', async () => {
+  it('switches airports, one at a time', async () => {
     const api = new FakeApi();
     api.dashboard = {airports: [snapshot(), cairns()], feeds: []};
     renderWithApi(<DashboardPage clock={clock} />, api);
@@ -118,8 +118,12 @@ describe('DashboardPage', () => {
       screen.queryByRole('article', {name: 'Brisbane'}),
     ).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('tab', {name: 'Both'}));
-    expect(screen.getAllByRole('article')).toHaveLength(2);
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
+      'Brisbane (YBBN)',
+      'Cairns (YBCS)',
+      'Gold Coast (YBCG)',
+    ]);
+    expect(screen.queryByRole('tab', {name: 'Both'})).not.toBeInTheDocument();
   });
 
   it('lists BoM warnings, a stand-down banner and feed health', async () => {
@@ -213,28 +217,6 @@ describe('DashboardPage', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('requests a refresh, reloads, and cools down before allowing another', async () => {
-    vi.useFakeTimers({shouldAdvanceTime: true});
-    const user = userEvent.setup({advanceTimers: vi.advanceTimersByTime});
-    const api = new FakeApi();
-    renderWithApi(<DashboardPage clock={clock} />, api);
-    await screen.findByText('No feed runs recorded yet.');
-
-    const button = screen.getByRole('button', {name: 'Refresh now'});
-    await user.click(button);
-
-    expect(api.refreshFeeds).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText(/Update requested/)).toBeInTheDocument();
-    expect(api.loadDashboard).toHaveBeenCalledTimes(2);
-    expect(button).toBeDisabled();
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(REFRESH_COOLDOWN_MS);
-    });
-    expect(button).toBeEnabled();
-    expect(screen.queryByText(/Update requested/)).not.toBeInTheDocument();
-  });
-
   it('states the real update interval', async () => {
     renderWithApi(<DashboardPage clock={clock} />, new FakeApi());
     await screen.findByText('No feed runs recorded yet.');
@@ -242,24 +224,9 @@ describe('DashboardPage', () => {
     expect(
       screen.getByText('Auto-updates every 10 minutes'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', {name: 'Refresh now'})).toHaveAttribute(
-      'title',
-      'Fetch new data now instead of waiting up to 10 minutes',
-    );
-  });
-
-  it('shows why a refresh could not start', async () => {
-    const api = new FakeApi();
-    api.refreshFeeds.mockRejectedValueOnce(new Error('Not authorised'));
-    renderWithApi(<DashboardPage clock={clock} />, api);
-    await screen.findByText('No feed runs recorded yet.');
-
-    await userEvent.click(screen.getByRole('button', {name: 'Refresh now'}));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Could not start a refresh: Not authorised',
-    );
-    expect(screen.getByRole('button', {name: 'Refresh now'})).toBeEnabled();
+    expect(
+      screen.queryByRole('button', {name: 'Refresh now'}),
+    ).not.toBeInTheDocument();
   });
 
   it('labels hourly forecast icons with the condition', async () => {

@@ -2,6 +2,7 @@
 import {describe, expect, it, vi} from 'vitest';
 import {AIRPORTS} from '../domain/airports';
 import {makeObservation} from '../domain/test_fixtures';
+import {isWarningFile} from './bom_ftp';
 import {readJobConfig, userAgentFor} from './config';
 import {chunk, createGmailMailer, MAX_BCC_PER_MESSAGE} from './gmail_mailer';
 import {createHttpFeeds} from './http_feeds';
@@ -202,5 +203,17 @@ describe('MemoryStore', () => {
       new Date('2026-11-09T12:00:00Z'),
     );
     expect(current.map((w) => w.id)).toEqual(['new']);
+  });
+});
+
+describe('isWarningFile', () => {
+  it('reads every Queensland product and NSW thunderstorm warnings only', () => {
+    expect(isWarningFile('IDQ21033.amoc.xml')).toBe(true);
+    expect(isWarningFile('IDQ10090.amoc.xml')).toBe(true);
+    expect(isWarningFile('IDN21033.amoc.xml')).toBe(true);
+    expect(isWarningFile('IDN11001.amoc.xml')).toBe(false);
+    expect(isWarningFile('IDV21033.amoc.xml')).toBe(false);
+    expect(isWarningFile('IDQ60920.xml')).toBe(false);
+    expect(isWarningFile('xIDN21033.amoc.xml.bak')).toBe(false);
   });
 });

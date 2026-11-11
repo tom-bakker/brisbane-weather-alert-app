@@ -48,6 +48,26 @@ export const AIRPORTS: readonly AirportConfig[] = [
     ],
     radarUrl: 'https://www.bom.gov.au/products/IDR193.loop.shtml',
   },
+  {
+    code: 'YBCG',
+    iata: 'OOL',
+    name: 'Gold Coast',
+    lat: -28.164,
+    lon: 153.505,
+    // Coolangatta AWS, at the airport.
+    bomWmoId: '94592',
+    // BoM warns by forecast district: Queensland's Southeast Coast district
+    // covers Brisbane and the Gold Coast; NSW's Northern Rivers covers the
+    // Tweed side of the airport.
+    warningKeywords: [
+      'Gold Coast',
+      'Southeast Coast',
+      'Coolangatta',
+      'Northern Rivers',
+    ],
+    // Mt Stapylton radar covers both Brisbane and the Gold Coast.
+    radarUrl: 'https://www.bom.gov.au/products/IDR663.loop.shtml',
+  },
 ];
 
 /** Looks up an airport by code; throws for an unknown code. */

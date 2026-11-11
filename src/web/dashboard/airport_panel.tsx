@@ -324,8 +324,7 @@ export function AirportPanel({
 
       <AlertBanner alerts={alerts} />
 
-      {/* Columns follow the panel's width, not the window's: in the Both
-          view each panel gets half the screen. */}
+      {/* Columns follow the panel's width, not the window's. */}
       <div className="grid gap-4 @lg:grid-cols-2 @4xl:grid-cols-3">
         <Tile
           title="Wind"
