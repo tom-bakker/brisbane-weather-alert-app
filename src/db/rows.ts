@@ -32,6 +32,8 @@ export interface ObservationRow {
   wind_dir_deg: number | null;
   wind_kt: number;
   gust_kt: number | null;
+  /** Optional until the gust_observed_at migration is run. */
+  gust_observed_at?: string | null;
   visibility_m: number | null;
   weather_codes: string;
   cloud: string;
@@ -124,6 +126,7 @@ export function observationToRow(o: Observation): ObservationRow {
     wind_dir_deg: o.windDirDeg,
     wind_kt: o.windKt,
     gust_kt: o.gustKt,
+    gust_observed_at: o.gustObservedAt,
     visibility_m: o.visibilityM,
     weather_codes: o.weatherCodes,
     cloud: o.cloud,
@@ -143,6 +146,11 @@ export function rowToObservation(r: ObservationRow): Observation {
     windDirDeg: r.wind_dir_deg,
     windKt: r.wind_kt,
     gustKt: r.gust_kt,
+    // Absent on databases that predate the gust_observed_at migration.
+    gustObservedAt:
+      r.gust_observed_at == null
+        ? null
+        : new Date(r.gust_observed_at).toISOString(),
     visibilityM: r.visibility_m,
     weatherCodes: r.weather_codes,
     cloud: r.cloud,

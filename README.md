@@ -29,7 +29,7 @@ flowchart LR
   subgraph Free data sources
     AWC[aviationweather.gov<br/>METAR + TAF]
     MET[MET Norway<br/>forecast + UV]
-    BOM[BoM anonymous FTP<br/>QLD warnings]
+    BOM[BoM anonymous FTP<br/>QLD warnings + station obs]
   end
   subgraph GitHub
     JOB[Actions: alert cycle<br/>workflow_dispatch]
@@ -62,6 +62,7 @@ flowchart LR
 | Official METAR and TAF | [aviationweather.gov Data API](https://aviationweather.gov/data/api/) (no key) | US Government public data; 100 requests/min limit |
 | Hourly forecast, clear-sky UV | [MET Norway Locationforecast](https://api.met.no/) (no key) | CC BY 4.0, attribution shown in the footer; commercial use allowed |
 | Thunderstorm and cyclone warnings | BoM anonymous FTP (`ftp.bom.gov.au/anon/gen/fwo/IDQ*.amoc.xml`) | [BoM copyright terms](https://www.bom.gov.au/other/copyright.shtml); check the commercial-use question raised in the spec before go-live |
+| Wind gusts (every gust, which METARs omit unless 10 kt above the mean wind) | BoM anonymous FTP (`ftp.bom.gov.au/anon/gen/fwo/IDQ60920.xml`, Brisbane 94578 and Cairns 94287 stations) | [BoM copyright terms](https://www.bom.gov.au/other/copyright.shtml); same terms as the warnings |
 
 Compared with the spec, this build gets **official METAR and TAF at no cost**:
 the spec's paid upgrade was only needed for Power Automate's premium HTTP

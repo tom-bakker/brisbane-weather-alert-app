@@ -5,6 +5,8 @@ const HOST = 'ftp.bom.gov.au';
 const DIRECTORY = '/anon/gen/fwo/';
 /** Queensland warning products in BoM's AMOC XML format. */
 const QLD_AMOC = /^IDQ\d+\.amoc\.xml$/;
+/** Latest reading from every Queensland weather station. */
+const QLD_OBSERVATIONS = 'IDQ60920.xml';
 
 class BufferSink extends Writable {
   private readonly chunks: Buffer[] = [];
@@ -19,24 +21,42 @@ class BufferSink extends Writable {
   }
 }
 
+async function withClient<T>(work: (client: Client) => Promise<T>) {
+  const client = new Client(30_000);
+  try {
+    await client.access({host: HOST, user: 'anonymous', password: 'guest'});
+    return await work(client);
+  } finally {
+    client.close();
+  }
+}
+
+async function download(client: Client, name: string): Promise<string> {
+  const sink = new BufferSink();
+  await client.downloadTo(sink, `${DIRECTORY}${name}`);
+  return sink.text();
+}
+
 /**
  * Downloads every current Queensland warning from the BoM anonymous FTP
  * service. BoM blocks automated HTTP access to its website and points
  * automated users to this channel instead.
  */
-export async function fetchBomAmocDocuments(): Promise<string[]> {
-  const client = new Client(30_000);
-  try {
-    await client.access({host: HOST, user: 'anonymous', password: 'guest'});
+export function fetchBomAmocDocuments(): Promise<string[]> {
+  return withClient(async (client) => {
     const files = await client.list(DIRECTORY);
     const documents: string[] = [];
     for (const file of files.filter((f) => QLD_AMOC.test(f.name))) {
-      const sink = new BufferSink();
-      await client.downloadTo(sink, `${DIRECTORY}${file.name}`);
-      documents.push(sink.text());
+      documents.push(await download(client, file.name));
     }
     return documents;
-  } finally {
-    client.close();
-  }
+  });
+}
+
+/**
+ * Downloads the latest Queensland weather station observations (the data
+ * behind BoM's IDQ60801 station pages), which report every wind gust.
+ */
+export function fetchBomObservationDocument(): Promise<string> {
+  return withClient((client) => download(client, QLD_OBSERVATIONS));
 }

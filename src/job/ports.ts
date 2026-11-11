@@ -31,6 +31,8 @@ export interface WeatherFeeds {
   fetchMetNo(airport: AirportConfig): Promise<MetNoResponse>;
   /** Raw BoM AMOC XML documents for Queensland warnings. */
   fetchBomWarningDocuments(): Promise<string[]>;
+  /** Raw BoM XML of the latest Queensland weather station readings. */
+  fetchBomObservationDocument(): Promise<string>;
 }
 
 export type {NewEmailAudit, OutgoingEmail} from '../domain/types';

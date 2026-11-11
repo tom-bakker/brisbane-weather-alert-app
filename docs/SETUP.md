@@ -31,8 +31,13 @@ Notes:
    `supabase/migrations/20261109000000_initial_schema.sql` → **Run**. Then do
    the same, in order, for `20261110000000_email_sections.sql`,
    `20261112000000_email_resend.sql` (the Email audit page's **Resend**
-   button) and `20261113000000_user_management.sql` (roles, Settings →
-   Users and the user audit). The cron migration comes later, in section 6.
+   button), `20261113000000_user_management.sql` (roles, Settings →
+   Users and the user audit), `20261114000000_phase_sections_and_thresholds.sql`
+   (per-level email sections and editable thresholds) and
+   `20261115000000_gust_observed_at.sql` (the time of each gust, which can
+   come from BoM's station readings). The cron migration comes later, in
+   section 6. On an existing project, run any of these you have not run yet
+   **before** merging code that needs them, or the alert cycle fails.
 3. **Authentication → Sign In / Providers**: turn **off** "Allow new users to sign up".
 4. **Authentication → Multi-Factor**: make sure **TOTP (App Authenticator)** is enabled.
 5. **Authentication → Users → Add user → Create new user**: enter the first

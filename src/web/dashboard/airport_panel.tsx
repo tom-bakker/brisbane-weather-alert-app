@@ -37,7 +37,7 @@ import {uvBand} from '../../domain/uv';
 import {CategoryIcon} from '../components/category_icon';
 import {LEVEL_STYLES, LevelBadge} from '../components/ui';
 import type {AirportSnapshot} from '../data/api';
-import {formatVisibility, formatWind, withUnit} from './format';
+import {formatGust, formatVisibility, formatWind, withUnit} from './format';
 import {conditionFromMetar, conditionFromSymbol, isNightAest} from './weather';
 import {WeatherIcon} from './weather_icon';
 
@@ -72,11 +72,11 @@ function Tile({
         level === null ? 'border-line' : LEVEL_STYLES[level].border,
       )}
     >
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-ink-soft flex items-center gap-2 text-sm font-semibold">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-ink-soft flex min-w-0 items-center gap-2 text-sm font-semibold">
           <span
             className={clsx(
-              'inline-flex h-7 w-7 items-center justify-center rounded-lg',
+              'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg',
               iconColor,
             )}
           >
@@ -289,7 +289,7 @@ export function AirportPanel({
     obs === null || minutesSince(obs.observedAt, now) > STALE_AFTER_MINUTES;
 
   return (
-    <article aria-label={airport.name} className="min-w-0 space-y-4">
+    <article aria-label={airport.name} className="@container min-w-0 space-y-4">
       <header className="flex items-start gap-3">
         <span className="mt-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
           <PlaneTakeoff aria-hidden="true" className="h-5 w-5" />
@@ -324,7 +324,9 @@ export function AirportPanel({
 
       <AlertBanner alerts={alerts} />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Columns follow the panel's width, not the window's: in the Both
+          view each panel gets half the screen. */}
+      <div className="grid gap-4 @lg:grid-cols-2 @4xl:grid-cols-3">
         <Tile
           title="Wind"
           icon={Wind}
@@ -344,7 +346,7 @@ export function AirportPanel({
               )
             }
           />
-          <Reading label="Gust" value={withUnit(obs?.gustKt ?? null, ' kt')} />
+          <Reading label="Gust" value={obs === null ? '—' : formatGust(obs)} />
         </Tile>
         <Tile
           title="Visibility and cloud"

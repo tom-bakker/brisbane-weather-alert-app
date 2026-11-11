@@ -11,6 +11,7 @@ export function makeObservation(
     windDirDeg: 80,
     windKt: 4,
     gustKt: null,
+    gustObservedAt: null,
     visibilityM: 10000,
     weatherCodes: '',
     cloud: 'FEW030',

@@ -9,6 +9,8 @@ export interface AirportConfig {
   lon: number;
   /** Words that tie a BoM warning to this airport's area. */
   warningKeywords: string[];
+  /** WMO number of the airport's BoM weather station. */
+  bomWmoId: string;
   /** BoM radar loop page for the area. */
   radarUrl: string;
 }
@@ -20,6 +22,7 @@ export const AIRPORTS: readonly AirportConfig[] = [
     name: 'Brisbane',
     lat: -27.384,
     lon: 153.118,
+    bomWmoId: '94578',
     warningKeywords: [
       'Brisbane',
       'Southeast Coast',
@@ -34,6 +37,7 @@ export const AIRPORTS: readonly AirportConfig[] = [
     name: 'Cairns',
     lat: -16.886,
     lon: 145.755,
+    bomWmoId: '94287',
     warningKeywords: [
       'Cairns',
       'North Tropical Coast',
